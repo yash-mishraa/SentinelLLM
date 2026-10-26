@@ -70,8 +70,9 @@ We model threats from several distinct adversary archetypes:
        │   SentinelLLM Gateway & Ingestion Boundary
 ───────▼──────────────────────────────────────────────────────────────────────
 [TRUST TRANSITION & PROVENANCE LAYER]
-  ├── Assigns provenance tags (T1: High-Trust, T2: Medium-Trust, T3: Untrusted)
-  └── Evaluates probabilistic detectors
+  ├── Assigns immutable provenance tags (ApplicationInstruction, UserMessage, RetrievedChunk, ToolOutput)
+  ├── Enforces trust classification invariants (assert_valid_trust_binding)
+  └── Evaluates probabilistic detectors (planned Milestone 3)
        │
 ───────▼──────────────────────────────────────────────────────────────────────
 [DETERMINISTIC POLICY DOMAIN]

@@ -33,7 +33,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Typing :: Typed",
 ]
-dependencies = []
+dependencies = [
+    "pydantic>=2.7.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/yash-mishraa/SentinelLLM"

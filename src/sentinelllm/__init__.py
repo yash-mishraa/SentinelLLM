@@ -6,5 +6,42 @@ validation, and safe tool execution primitives for language model workloads.
 
 from typing import Final
 
+from sentinelllm.contracts import (
+    ApplicationInstruction,
+    AuditEvent,
+    BaseContentItem,
+    ContentProvenance,
+    Decision,
+    RequestContext,
+    RetrievedChunk,
+    SecurityContent,
+    SecurityDecision,
+    SecurityFinding,
+    Severity,
+    ToolOutput,
+    TrustClassification,
+    assert_valid_trust_binding,
+)
+from sentinelllm.orchestrator import LifecycleOrchestrator, LifecycleResult
+
 __version__: Final[str] = "0.1.0.dev0"
-__all__: Final[list[str]] = ["__version__"]
+
+__all__: Final[list[str]] = [
+    "ApplicationInstruction",
+    "AuditEvent",
+    "BaseContentItem",
+    "ContentProvenance",
+    "Decision",
+    "LifecycleOrchestrator",
+    "LifecycleResult",
+    "RequestContext",
+    "RetrievedChunk",
+    "SecurityContent",
+    "SecurityDecision",
+    "SecurityFinding",
+    "Severity",
+    "ToolOutput",
+    "TrustClassification",
+    "__version__",
+    "assert_valid_trust_binding",
+]

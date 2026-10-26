@@ -139,14 +139,41 @@ PromptProbe is decoupled from the runtime protection package to provide neutral,
 
 ---
 
-## 4. Current Implementation vs. Planned Roadmap
+## 4. Implemented Milestone 2 Contracts & Invariants
 
-| Architectural Component | Milestone 1 (Current Foundation) | Target Milestone |
+Milestone 2 establishes the core typed domain models and request lifecycle orchestration under `src/sentinelllm/contracts/` and `src/sentinelllm/orchestrator.py`.
+
+### 4.1 Provenance vs. Trust Classification
+A central invariant of SentinelLLM is the rigorous distinction between **physical provenance** and **application trust classification**:
+
+- **Content Provenance (`ContentProvenance`):** Records the physical origin channel (`APPLICATION_INSTRUCTION`, `USER_MESSAGE`, `RETRIEVED_DOCUMENT`, `EXTERNAL_TOOL`).
+- **Trust Classification (`TrustClassification`):** Records the authority tier granted by the application (`TRUSTED_INSTRUCTIONS`, `USER_INPUT`, `UNTRUSTED_CONTEXT`).
+
+> [!IMPORTANT]
+> **Trust Authority Invariant:** Untrusted origins (`USER_MESSAGE`, `RETRIEVED_DOCUMENT`, `EXTERNAL_TOOL`) can **never** receive `TRUSTED_INSTRUCTIONS` authority. Even if user text or retrieved document text claims to be a system instruction, validation asserts that only `APPLICATION_INSTRUCTION` items hold instruction authority.
+
+### 4.2 Detection Findings vs. Enforcement Decisions
+- **Security Finding (`SecurityFinding`):** Represents an analytical observation emitted by a security detector (e.g., regex pattern match, canary leak, classifier score). A finding contains category, severity, detector source, and explanation. Findings are strictly observational and **never grant execution authority**.
+- **Security Decision (`SecurityDecision`):** Represents the authoritative, deterministic policy outcome (`ALLOW`, `BLOCK`, `REDACT`, `REVIEW`) rendered exclusively by the Policy Decision Point.
+
+### 4.3 Data Sanitization in Context and Audit Events
+- **`RequestContext` Sanitization:** Validates that credentials, API keys, passwords, and authorization tokens cannot be placed into request metadata.
+- **`AuditEvent` Sanitization:** Strictly prohibits raw prompt text, retrieved documents, tool arguments, or credentials in audit metadata, recording structural metadata, item counts, and provenance distributions instead.
+
+### 4.4 Minimal Request Lifecycle Orchestrator (`LifecycleOrchestrator`)
+The synchronous lifecycle orchestrator processes validated `RequestContext` instances without modifying item provenances, emits initial `lifecycle.request_received` and `lifecycle.context_processed` audit events with UTC timestamps, and produces a deterministic `LifecycleResult`.
+
+---
+
+## 5. Current Implementation vs. Planned Roadmap
+
+| Architectural Component | Implementation Status | Milestone |
 | :--- | :--- | :--- |
-| **Package Structure & Metadata** | Implemented (`sentinelllm`, `promptprobe`) | Foundation (Done) |
-| **Quality Gates & CI** | Implemented (Ruff, Mypy, Pytest, Build) | Foundation (Done) |
-| **Gateway & Interceptor** | Architectural specification | Milestone 2 |
-| **Provenance & Trust Tiers** | Architectural specification | Milestone 2 |
+| **Package Structure & Metadata** | Implemented (`sentinelllm`, `promptprobe`) | Milestone 1 (Done) |
+| **Quality Gates & CI** | Implemented (Ruff, Mypy, Pytest, Build) | Milestone 1 (Done) |
+| **Typed Security Contracts** | Implemented (`provenance`, `messages`, `context`, `decision`, `audit`) | Milestone 2 (Done) |
+| **Minimal Lifecycle Orchestrator** | Implemented (`LifecycleOrchestrator`, `LifecycleResult`) | Milestone 2 (Done) |
+| **Gateway & Interceptor** | Architectural specification | Milestone 3 |
 | **Detection Subsystem** | Architectural specification | Milestone 3 |
 | **Policy Engine (PDP / PEP)** | Architectural specification | Milestone 4 |
 | **Tool Execution Proxy** | Architectural specification | Milestone 4 |
