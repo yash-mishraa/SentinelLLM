@@ -7,6 +7,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from sentinelllm.contracts.messages import SecurityContent
+from sentinelllm.policy.principal import AuthenticatedPrincipal
 
 _SENSITIVE_KEY_PATTERN = re.compile(
     r"(?i)(api[_-]?key|password|secret|token|auth(orization)?|private[_-]?key)"
@@ -20,6 +21,7 @@ class RequestContext(BaseModel):
 
     request_id: str = Field(default_factory=lambda: uuid4().hex, min_length=1)
     correlation_id: str | None = None
+    principal: AuthenticatedPrincipal | None = None
     items: tuple[SecurityContent, ...] = Field(default_factory=tuple)
     metadata: dict[str, Any] = Field(default_factory=dict)
 

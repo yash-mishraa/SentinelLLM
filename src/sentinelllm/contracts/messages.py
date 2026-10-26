@@ -88,3 +88,52 @@ class ToolOutput(BaseContentItem):
 
 
 SecurityContent = ApplicationInstruction | UserMessage | RetrievedChunk | ToolOutput
+InboundUntrustedContent = UserMessage | RetrievedChunk | ToolOutput
+
+
+def parse_untrusted_content(payload: dict[str, Any] | str) -> InboundUntrustedContent:
+    """Safely parse untrusted external content, preventing instruction escalation.
+
+    Security Invariant:
+    Untrusted external inputs can NEVER construct an ApplicationInstruction or
+    claim TRUSTED_INSTRUCTIONS authority. Any payload attempting to supply
+    application_instruction provenance or trusted_instructions classification
+    is strictly rejected.
+
+    Raises:
+        ValueError: If payload attempts to spoof application instructions or trusted authority.
+        TypeError: If payload is not a dict or string.
+    """
+    if isinstance(payload, str):
+        return UserMessage(content=payload)
+
+    if not isinstance(payload, dict):
+        raise TypeError(f"Expected dict or str for untrusted content, got {type(payload).__name__}")
+
+    prov = payload.get("provenance")
+    if prov in (
+        ContentProvenance.APPLICATION_INSTRUCTION,
+        ContentProvenance.APPLICATION_INSTRUCTION.value,
+    ):
+        raise ValueError(
+            "Security violation: Untrusted serialized input cannot claim "
+            "ApplicationInstruction provenance."
+        )
+
+    trust = payload.get("trust_classification")
+    if trust in (
+        TrustClassification.TRUSTED_INSTRUCTIONS,
+        TrustClassification.TRUSTED_INSTRUCTIONS.value,
+    ):
+        raise ValueError(
+            "Security violation: Untrusted serialized input cannot claim "
+            "TRUSTED_INSTRUCTIONS authority."
+        )
+
+    # Resolve to appropriate untrusted message model
+    if prov in (ContentProvenance.RETRIEVED_DOCUMENT, ContentProvenance.RETRIEVED_DOCUMENT.value):
+        return RetrievedChunk.model_validate(payload)
+    if prov in (ContentProvenance.EXTERNAL_TOOL, ContentProvenance.EXTERNAL_TOOL.value):
+        return ToolOutput.model_validate(payload)
+
+    return UserMessage.model_validate(payload)

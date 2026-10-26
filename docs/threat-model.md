@@ -72,12 +72,17 @@ We model threats from several distinct adversary archetypes:
 [TRUST TRANSITION & PROVENANCE LAYER]
   ├── Assigns immutable provenance tags (ApplicationInstruction, UserMessage, RetrievedChunk, ToolOutput)
   ├── Enforces trust classification invariants (assert_valid_trust_binding)
+  ├── Enforces anti-spoofing deserialization (parse_untrusted_content rejects ApplicationInstruction/TRUSTED_INSTRUCTIONS)
   └── Evaluates heuristic detectors (InjectionPattern, Extraction, CanaryLeak - Milestone 3)
        │
 ───────▼──────────────────────────────────────────────────────────────────────
-[DETERMINISTIC POLICY DOMAIN]
-  ├── Policy Decision Point (PDP) renders immutable action verdict
-  └── Policy Enforcement Point (PEP) intercepts all tool invocations
+[DETERMINISTIC POLICY DOMAIN (Milestone 4)]
+  ├── Policy Decision Point (PDP): evaluates AuthenticatedPrincipal, actions, and findings
+  │   └── Deterministic precedence: authentication gate, critical containment, deny rules, untrusted restriction, allow rules
+  └── Policy Enforcement Point (PEP): intercepts agent tool calls
+      ├── Validates arguments against strict Pydantic schemas
+      ├── Verifies PDP authorization decisions and handles review states
+      └── Confines execution errors without process disruption
        │
 ═══════╪══════════════════════════════════════════════════════════════════════
        │   Authorized Action Boundary

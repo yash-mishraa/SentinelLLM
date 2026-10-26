@@ -12,6 +12,7 @@ from sentinelllm.contracts import (
     BaseContentItem,
     ContentProvenance,
     Decision,
+    InboundUntrustedContent,
     RequestContext,
     RetrievedChunk,
     SecurityContent,
@@ -21,6 +22,7 @@ from sentinelllm.contracts import (
     ToolOutput,
     TrustClassification,
     assert_valid_trust_binding,
+    parse_untrusted_content,
 )
 from sentinelllm.detectors import (
     BaseDetector,
@@ -33,12 +35,29 @@ from sentinelllm.detectors import (
     InstructionExtractionDetector,
 )
 from sentinelllm.orchestrator import LifecycleOrchestrator, LifecycleResult
+from sentinelllm.policy import (
+    AnonymousPrincipal,
+    AuthenticatedPrincipal,
+    AuthorizationRequest,
+    PolicyConfig,
+    PolicyDecisionPoint,
+    PolicyRule,
+)
+from sentinelllm.tools import (
+    PolicyEnforcementPoint,
+    ToolExecutionResult,
+    ToolRegistry,
+    ToolSpec,
+)
 
 __version__: Final[str] = "0.1.0.dev0"
 
 __all__: Final[list[str]] = [
+    "AnonymousPrincipal",
     "ApplicationInstruction",
     "AuditEvent",
+    "AuthenticatedPrincipal",
+    "AuthorizationRequest",
     "BaseContentItem",
     "BaseDetector",
     "CanaryConfig",
@@ -47,19 +66,28 @@ __all__: Final[list[str]] = [
     "Decision",
     "DetectorRegistry",
     "ExtractionRule",
+    "InboundUntrustedContent",
     "InjectionPatternDetector",
     "InjectionRule",
     "InstructionExtractionDetector",
     "LifecycleOrchestrator",
     "LifecycleResult",
+    "PolicyConfig",
+    "PolicyDecisionPoint",
+    "PolicyEnforcementPoint",
+    "PolicyRule",
     "RequestContext",
     "RetrievedChunk",
     "SecurityContent",
     "SecurityDecision",
     "SecurityFinding",
     "Severity",
+    "ToolExecutionResult",
     "ToolOutput",
+    "ToolRegistry",
+    "ToolSpec",
     "TrustClassification",
     "__version__",
     "assert_valid_trust_binding",
+    "parse_untrusted_content",
 ]

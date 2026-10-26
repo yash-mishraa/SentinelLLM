@@ -172,6 +172,14 @@ The detection subsystem (`src/sentinelllm/detectors/`) introduces a modular scan
 - **`DetectorRegistry`:** Aggregates findings in deterministic order and tracks item provenance metadata.
 - **Lifecycle Integration:** The orchestrator executes the configured registry, emits `lifecycle.findings_detected` audit events, and returns findings on `LifecycleResult.findings` without automatically executing blocking actions.
 
+### 4.6 Policy Engine & Action Authorization (Milestone 4)
+The policy subsystem (`src/sentinelllm/policy/` and `src/sentinelllm/tools/`) implements deterministic access control and tool execution gating:
+- **`AuthenticatedPrincipal` & `AnonymousPrincipal`:** Immutable caller identity abstraction. Only host applications assign identities; claims in prompts or untrusted metadata are strictly ignored.
+- **Inbound Content Anti-Spoofing:** `parse_untrusted_content(...)` and `InboundUntrustedContent` union strictly reject untrusted deserialization into `ApplicationInstruction` or `TRUSTED_INSTRUCTIONS`.
+- **`PolicyDecisionPoint` (PDP):** Evaluates `AuthorizationRequest` using deterministic rules with explicit precedence (fail-closed): unauthenticated rejection, critical finding containment, explicit deny rules, untrusted-context privilege restriction, high-severity review, explicit allow rules, and default deny. Emits standardized reason codes.
+- **`PolicyEnforcementPoint` (PEP):** Intercepts proposed tool invocations, validates arguments against Pydantic schemas, queries the PDP, enforces permissions/approvals, and executes tools safely with exception containment.
+- **Simulated Tool Suite:** Synthetic tools (`search_documents`, `read_customer_record`, `export_customer_records`) backed by isolated mock datasets for safe, zero-side-effect evaluation.
+
 ---
 
 ## 5. Current Implementation vs. Planned Roadmap
@@ -183,8 +191,8 @@ The detection subsystem (`src/sentinelllm/detectors/`) introduces a modular scan
 | **Typed Security Contracts** | Implemented (`provenance`, `messages`, `context`, `decision`, `audit`) | Milestone 2 (Done) |
 | **Minimal Lifecycle Orchestrator** | Implemented (`LifecycleOrchestrator`, `LifecycleResult`) | Milestone 2 (Done) |
 | **Heuristic Detection Subsystem** | Implemented (`InjectionPattern`, `InstructionExtraction`, `CanaryLeak`, `DetectorRegistry`) | Milestone 3 (Done) |
-| **Policy Engine (PDP / PEP)** | Architectural specification | Milestone 4 |
-| **Tool Execution Proxy** | Architectural specification | Milestone 4 |
+| **Policy Engine (PDP / PEP)** | Implemented (`PolicyDecisionPoint`, `AuthenticatedPrincipal`, deterministic rules) | Milestone 4 (Done) |
+| **Tool Execution Proxy** | Implemented (`PolicyEnforcementPoint`, `ToolRegistry`, simulated tools) | Milestone 4 (Done) |
 | **Output Validator & Canary Redaction**| Architectural specification | Milestone 5 |
 | **PromptProbe Harness** | Package initialized; architecture defined | Milestone 6 |
 | **Benchmark Suites & Reports**| Directory structure; methodology defined | Milestone 7 |

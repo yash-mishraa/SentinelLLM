@@ -11,10 +11,12 @@ from sentinelllm.contracts.decision import (
 from sentinelllm.contracts.messages import (
     ApplicationInstruction,
     BaseContentItem,
+    InboundUntrustedContent,
     RetrievedChunk,
     SecurityContent,
     ToolOutput,
     UserMessage,
+    parse_untrusted_content,
 )
 from sentinelllm.contracts.provenance import (
     ContentProvenance,
@@ -28,6 +30,7 @@ __all__ = [
     "BaseContentItem",
     "ContentProvenance",
     "Decision",
+    "InboundUntrustedContent",
     "RequestContext",
     "RetrievedChunk",
     "SecurityContent",
@@ -38,4 +41,5 @@ __all__ = [
     "TrustClassification",
     "UserMessage",
     "assert_valid_trust_binding",
+    "parse_untrusted_content",
 ]
