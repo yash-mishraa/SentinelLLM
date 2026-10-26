@@ -1,9 +1,9 @@
 # SentinelLLM Security Audit & Adversarial Review Report
 
-> **Audit Date:** 2026-10-26  
-> **Target Version:** SentinelLLM v0.1.0.dev0  
-> **Status:** Completed & Remediated  
-> **Audit Type:** Independent Codebase Review, Trust-Boundary Audit, and Adversarial Concurrency Testing  
+> **Audit Date:** 2026-10-26
+> **Target Version:** SentinelLLM v0.1.0.dev0
+> **Status:** Completed & Remediated
+> **Audit Type:** Independent Codebase Review, Trust-Boundary Audit, and Adversarial Concurrency Testing
 
 ---
 
@@ -42,11 +42,11 @@ All critical and high findings have been resolved with atomic concurrency synchr
 ### Finding 1: TOCTOU Concurrency Race Condition in Approval Consumption
 - **Severity:** **CRITICAL**
 - **Affected Components:** `sentinelllm.approvals.service.ApprovalService`, `sentinelllm.approvals.store.InMemoryApprovalStore`
-- **Vulnerability Description:**  
+- **Vulnerability Description:**
   `ApprovalService.consume()` performed a non-atomic `get() -> validate -> save()` workflow without thread synchronization. Under concurrent load, multiple threads could read `status == ApprovalStatus.APPROVED` before any thread updated the state to `ApprovalStatus.CONSUMED`.
-- **Exploit Scenario:**  
+- **Exploit Scenario:**
   An attacker issuing concurrent requests using a single approved `approval_id` could execute a sensitive action multiple times (replay / double-spending attack).
-- **Remediation:**  
+- **Remediation:**
   Implemented `threading.RLock()` in `ApprovalService` protecting `create_approval`, `approve`, `reject`, and `consume`. Added `RLock()` synchronization to `InMemoryApprovalStore`. State transitions are now strictly atomic.
 - **Regression Test:** `tests/unit/test_security_audit.py::test_concurrent_approval_consumption_is_strictly_atomic` (10 concurrent threads with simulated latency; exactly 1 succeeds, 9 fail with `DENY_APPROVAL_ALREADY_CONSUMED`).
 
@@ -55,11 +55,11 @@ All critical and high findings have been resolved with atomic concurrency synchr
 ### Finding 2: Information Disclosure of Secrets in PEP Validation Error Messages
 - **Severity:** **HIGH**
 - **Affected Components:** `sentinelllm.tools.pep.PolicyEnforcementPoint.invoke`
-- **Vulnerability Description:**  
+- **Vulnerability Description:**
   When tool arguments failed Pydantic schema validation, the PEP formatted the error using `err.errors()`. In Pydantic v2, `err.errors()` contains an `'input'` dictionary echoing the raw input value. If a caller supplied extra forbidden fields or invalid values containing passwords, API tokens, or secrets, the raw secret value was directly embedded in `ToolExecutionResult.error_message`.
-- **Exploit Scenario:**  
+- **Exploit Scenario:**
   An attacker or caller passing credentials in malformed arguments received raw secrets reflected back in error responses or logs.
-- **Remediation:**  
+- **Remediation:**
   Implemented `_sanitize_validation_error()` in `PolicyEnforcementPoint`, extracting only field locations (`loc`), error messages (`msg`), and validation types (`type`) while strictly omitting raw `input` values and extra context.
 - **Regression Test:** `tests/unit/test_security_audit.py::test_pep_error_message_sanitizes_raw_arguments_and_secrets`.
 
@@ -68,11 +68,11 @@ All critical and high findings have been resolved with atomic concurrency synchr
 ### Finding 3: Policy Decision Point Failed to Enforce High-Risk Containment on Non-Injection Findings
 - **Severity:** **HIGH**
 - **Affected Components:** `sentinelllm.policy.engine.PolicyDecisionPoint.evaluate`
-- **Vulnerability Description:**  
+- **Vulnerability Description:**
   In Step 4 of policy evaluation, `PDP.evaluate()` filtered findings with `f.severity == Severity.HIGH and f.category == "prompt_injection"`. High-severity findings emitted by other detectors—such as `InstructionExtractionDetector` (`category="instruction_extraction"`)—were ignored. Consequently, requests with high-severity extraction probes that matched an `ALLOW` rule were permitted to execute.
-- **Exploit Scenario:**  
+- **Exploit Scenario:**
   An adversary combining a system prompt extraction probe with a permitted tool call bypassed policy containment because the detector finding was categorized as extraction rather than injection.
-- **Remediation:**  
+- **Remediation:**
   Broadened Step 4 to evaluate any `Severity.HIGH` finding (`f.severity == Severity.HIGH`) rather than restricting to `prompt_injection`.
 - **Regression Test:** `tests/unit/test_security_audit.py::test_pdp_enforces_high_risk_containment_on_instruction_extraction`.
 
@@ -81,11 +81,11 @@ All critical and high findings have been resolved with atomic concurrency synchr
 ### Finding 4: Absence of Untrusted Context Ingestion Gateway Sanitizer
 - **Severity:** **MEDIUM**
 - **Affected Components:** `sentinelllm.contracts.context.RequestContext`
-- **Vulnerability Description:**  
+- **Vulnerability Description:**
   While `parse_untrusted_content()` existed for individual messages, `RequestContext` lacked a corresponding safe parser for raw serialized dictionaries or JSON. Deserializing an untrusted context directly via `RequestContext.model_validate()` allowed callers to inject `ApplicationInstruction` into `items` and assert `AuthenticatedPrincipal` with arbitrary roles and permissions.
-- **Exploit Scenario:**  
+- **Exploit Scenario:**
   An application endpoint accepting raw JSON payloads and deserializing them into `RequestContext` could be tricked into treating untrusted content as trusted application directives or verified administrative principals.
-- **Remediation:**  
+- **Remediation:**
   Implemented `parse_untrusted_context(payload)` in `contracts/context.py`. It strictly parses all items through `parse_untrusted_content()` and rejects any caller-supplied authenticated principal claiming `is_authenticated=True` or roles/permissions.
 - **Regression Test:** `tests/unit/test_security_audit.py::test_parse_untrusted_context_rejects_spoofed_principal` and `test_parse_untrusted_context_rejects_application_instruction_injection`.
 
@@ -94,11 +94,11 @@ All critical and high findings have been resolved with atomic concurrency synchr
 ### Finding 5: Disallowed Audit Key Regex Gap and Missing Recursive Sanitization
 - **Severity:** **MEDIUM**
 - **Affected Components:** `sentinelllm.contracts.audit.AuditEvent._reject_raw_content_in_audit_metadata`
-- **Vulnerability Description:**  
+- **Vulnerability Description:**
   `_DISALLOWED_AUDIT_KEYS` omitted standard authentication tokens such as `token`, `auth`, `authorization`, `private_key`, `credential`. Additionally, the validator only inspected top-level dictionary keys, allowing sensitive credentials to be placed in nested metadata structures (e.g. `{"config": {"password": "..."}}`).
-- **Exploit Scenario:**  
+- **Exploit Scenario:**
   Telemetry pipelines emitting audit records could inadvertently log sensitive credentials if passed under `auth_token` or within nested dictionaries.
-- **Remediation:**  
+- **Remediation:**
   Expanded `_DISALLOWED_AUDIT_KEYS` to include `token`, `auth`, `authorization`, `private_key`, `credential`. Implemented recursive traversal (`_scan_keys_recursively()`) inspecting nested dictionaries, lists, and tuples.
 - **Regression Test:** `tests/unit/test_security_audit.py::test_audit_event_recursively_rejects_nested_sensitive_keys`.
 
@@ -124,9 +124,9 @@ All critical and high findings have been resolved with atomic concurrency synchr
 
 ## 5. Unresolved Issues & Lower-Priority Observations
 
-1. **Process-Local In-Memory Approval Store:**  
+1. **Process-Local In-Memory Approval Store:**
    `InMemoryApprovalStore` uses process-local threading locks (`RLock`). In multi-process or distributed cluster deployments (e.g. multiple Gunicorn/Uvicorn workers, Kubernetes replicas), an external distributed atomic store (e.g. Redis with atomic Lua scripts or PostgreSQL with row-level locks) must be used to maintain cross-instance atomicity.
-2. **Regex Heuristic Brittleness:**  
+2. **Regex Heuristic Brittleness:**
    Heuristic regex pattern detectors (`InjectionPatternDetector`, `InstructionExtractionDetector`) are inherently sensitive to paraphrasing, evasion, and multilingual obfuscation. As demonstrated in PromptProbe case `INJ-DIR-002`, pattern heuristics provide defense-in-depth but cannot replace semantic classifiers or action-level authorization boundaries.
 
 ---

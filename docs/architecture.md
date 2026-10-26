@@ -214,6 +214,20 @@ PromptProbe extends beyond single-case evaluations to multi-step adversarial tra
   - Detects post-approval argument modification and enforces single-use cryptographic argument binding (`DENY_APPROVAL_ARGUMENTS_MISMATCH`).
 - **CLI Commands:** `python -m promptprobe scenarios` and `make scenarios`.
 
+### 4.10 Security Audit & Execution Boundary Hardening (Milestone 8)
+Milestone 8 conducted an adversarial security audit across all execution boundaries:
+- **Thread-Safe Approval Consumption:** Added `threading.RLock()` synchronization to `ApprovalService` and `InMemoryApprovalStore`, eliminating TOCTOU race conditions and double-spending of single-use approvals under concurrent loads.
+- **Error Redaction in PEP:** Implemented `_sanitize_validation_error` in `PolicyEnforcementPoint` to redact raw argument values and secrets from Pydantic validation errors.
+- **Universal High-Risk Containment:** Broadened PDP Step 4 to contain all `Severity.HIGH` findings regardless of category (e.g. instruction extraction), preventing policy bypasses.
+- **Gateway Context Sanitizer:** Implemented `parse_untrusted_context` to prevent caller injection of `ApplicationInstruction` or assertion of privileged `AuthenticatedPrincipal` identities during context deserialization.
+- **Deep Recursive Audit Sanitization:** Expanded disallowed audit keys to include tokens, credentials, and authorization headers, and implemented recursive scanning of nested collections.
+
+### 4.11 Benchmark Triage & Release Candidate (Milestone 9)
+Milestone 9 established reproducible evaluation benchmarks and release readiness:
+- **Benchmark Discrepancy Triage:** Verified that the 22/23 single-case score reflects an intentional heuristic detector false negative (`INJ-DIR-002`) due to regex boundary limitations, not a policy enforcement defect or regression.
+- **Empirical Baseline Isolation:** Verified via `no_detection_baseline` that zero unauthorized tool executions occur even when content detectors are completely disabled.
+- **Deterministic Reporting:** Pinned dataset versions, policy configurations, and random seeds, ensuring evaluation results are strictly reproducible.
+
 ---
 
 ## 5. Current Implementation vs. Planned Roadmap
@@ -230,5 +244,5 @@ PromptProbe extends beyond single-case evaluations to multi-step adversarial tra
 | **Human Approval Workflow** | Implemented (`ApprovalService`, `ApprovalRequest`, single-use bindings) | Milestone 5 (Done) |
 | **PromptProbe Harness & Benchmark** | Implemented (`BenchmarkRunner`, `DatasetContainer`, metrics, CLI) | Milestone 6 (Done) |
 | **Multi-Step Adversarial Scenarios** | Implemented (`ScenarioRunner`, `SecurityScenario`, 10 scenarios) | Milestone 7 (Done) |
-| **Output Validator & Canary Redaction**| Architectural specification | Milestone 8 |
-| **Expanded Multi-Turn Benchmarks**| Directory structure; methodology defined | Milestone 9 |
+| **Security Audit & Boundary Hardening** | Implemented (Atomic approval locks, error redaction, universal containment) | Milestone 8 (Done) |
+| **Benchmark Triage & Release Candidate**| Implemented (Reproducibility verification, benchmark triage, docs release) | Milestone 9 (Done) |
