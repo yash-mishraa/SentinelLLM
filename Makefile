@@ -1,4 +1,4 @@
-.PHONY: help install lint format typecheck test check build clean
+.PHONY: help install lint format typecheck test check build clean benchmark
 
 PYTHON ?= $(shell if [ -f .venv/bin/python ]; then echo .venv/bin/python; else echo python3; fi)
 PIP ?= $(shell if [ -f .venv/bin/pip ]; then echo .venv/bin/pip; else echo pip; fi)
@@ -12,6 +12,7 @@ help:
 	@echo "  format     Format code using Ruff"
 	@echo "  typecheck  Run Mypy static type analysis"
 	@echo "  test       Run unit, integration, and security tests with coverage"
+	@echo "  benchmark  Run PromptProbe adversarial evaluation benchmark suite"
 	@echo "  check      Run full quality gate pipeline (lint, format check, typecheck, test, build)"
 	@echo "  build      Build source distribution and wheel packages"
 	@echo "  clean      Remove temporary build artifacts and cache files"
@@ -33,6 +34,9 @@ typecheck:
 
 test:
 	$(PYTHON) -m pytest --cov=sentinelllm --cov=promptprobe --cov-report=term-missing tests
+
+benchmark:
+	$(PYTHON) -m promptprobe run
 
 build:
 	$(PYTHON) -m build

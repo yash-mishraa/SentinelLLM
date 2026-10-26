@@ -189,6 +189,17 @@ The approval subsystem (`src/sentinelllm/approvals/`) establishes an explicit hu
 - **Hardened Precedence:** Precedence strictly separates detection, authorization, and enforcement. Clean detector results never grant permissions. Critical findings (canary leak) unconditionally block tool execution, even with a valid approval. High-severity injection findings can be configured to block or escalate to supervisor review.
 - **Process-Local Store:** `InMemoryApprovalStore` provides local in-memory storage for development and testing; distributed cluster deployments require an atomic external store.
 
+### 4.8 PromptProbe Adversarial Evaluation Harness (Milestone 6)
+PromptProbe (`promptprobe/`) implements empirical, reproducible benchmark execution:
+- **`EvaluationCase` & `DatasetContainer`:** Immutable dataset schemas with uniqueness validation on `case_id`.
+- **Versioned Synthetic Dataset:** Starter dataset v1.0.0 (`benchmarks/datasets/starter_adversarial_v1.json`) covering 23 cases across 12 distinct attack and baseline categories.
+- **`BenchmarkRunner`:** Executes cases deterministically against defense configurations with pinned pseudorandom seed.
+- **Separated Metric Reporting:**
+  - *Detector Classification:* Confusion matrix (TP, FP, TN, FN), Precision, Recall, F1, Accuracy, FPR.
+  - *Action Enforcement:* Unauthorized executions, correctly permitted, correctly denied, safely held for approval.
+- **Baseline Comparative Presets:** Evaluates `heuristic_defense` vs `no_detection_baseline`.
+- **CLI & Artifact Generation:** Executable via `python -m promptprobe run` emitting human-readable tables and machine-readable JSON artifacts.
+
 ---
 
 ## 5. Current Implementation vs. Planned Roadmap
@@ -203,6 +214,6 @@ The approval subsystem (`src/sentinelllm/approvals/`) establishes an explicit hu
 | **Policy Engine (PDP / PEP)** | Implemented (`PolicyDecisionPoint`, `AuthenticatedPrincipal`, deterministic rules) | Milestone 4 (Done) |
 | **Tool Execution Proxy** | Implemented (`PolicyEnforcementPoint`, `ToolRegistry`, simulated tools) | Milestone 4 (Done) |
 | **Human Approval Workflow** | Implemented (`ApprovalService`, `ApprovalRequest`, single-use bindings) | Milestone 5 (Done) |
-| **Output Validator & Canary Redaction**| Architectural specification | Milestone 6 |
-| **PromptProbe Harness** | Package initialized; architecture defined | Milestone 7 |
-| **Benchmark Suites & Reports**| Directory structure; methodology defined | Milestone 8 |
+| **PromptProbe Harness & Benchmark** | Implemented (`BenchmarkRunner`, `DatasetContainer`, metrics, CLI) | Milestone 6 (Done) |
+| **Output Validator & Canary Redaction**| Architectural specification | Milestone 7 |
+| **Expanded Multi-Turn Benchmarks**| Directory structure; methodology defined | Milestone 8 |
