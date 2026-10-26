@@ -1,0 +1,155 @@
+# SentinelLLM System Architecture & Design Specification
+
+> **Architectural Proposal Notice:** This document specifies the planned technical architecture, component boundaries, and security contracts for SentinelLLM and its companion harness PromptProbe. As of Milestone 1 (Foundation), this describes proposed target system capabilities and does not represent completed implementation.
+
+---
+
+## 1. High-Level Architectural Vision
+
+SentinelLLM is designed as a defense-in-depth, runtime security framework for applications built on large language models (LLMs) and autonomous AI agents. Rather than relying solely on probabilistic content filtering or prompt-level admonitions, SentinelLLM decouples **probabilistic signal detection** from **deterministic action-level policy enforcement**.
+
+```mermaid
+flowchart TD
+    subgraph ClientLayer["Client & Untrusted Interfaces"]
+        UserReq["User Prompt / Request"]
+        ExternalData["External Data (RAG, Web, APIs)"]
+    end
+
+    subgraph SentinelRuntime["SentinelLLM Runtime Security Engine"]
+        GW["1. Gateway & Request Lifecycle Interceptor"]
+        TP["2. Trust Boundary & Provenance Engine"]
+        DET["3. Multi-Signal Security Detectors"]
+        POL["4. Policy Decision Point (PDP)"]
+        LLM["Foundation Model Execution"]
+        OV["5. Output Validation & Secret Redaction"]
+        PEP["6. Tool Authorization & Execution Proxy (PEP)"]
+        AUD["7. Structured Audit & Telemetry Logger"]
+    end
+
+    subgraph ToolsAndEnvironment["External Environment"]
+        AgentTools["Target Tools & System APIs"]
+    end
+
+    subgraph EvalHarness["PromptProbe Evaluation Framework (Companion)"]
+        PP_Runner["8. Attack Harness & Payload Injector"]
+        PP_Bench["9. Benchmark Datasets & Metrics Engine"]
+    end
+
+    UserReq --> GW
+    ExternalData --> GW
+    GW --> TP
+    TP --> DET
+    TP --> POL
+    DET -.->|"Detection Signals (Probabilistic)"| POL
+    POL -->|"Permit / Deny / Sanitize"| LLM
+    LLM --> OV
+    LLM -.->|"Proposed Tool Call"| PEP
+    POL -->|"Action Policy"| PEP
+    PEP -->|"Authorized Execution"| AgentTools
+    AgentTools -->|"Untrusted Tool Output"| TP
+    OV -->|"Clean Response"| UserReq
+
+    GW --> AUD
+    POL --> AUD
+    PEP --> AUD
+
+    PP_Runner -.->|"Evaluates Defenses"| GW
+    PP_Bench --> PP_Runner
+    AUD -.->|"Audit Traces for Evaluation"| PP_Bench
+```
+
+---
+
+## 2. Core Architectural Components & Separation of Concerns
+
+### 2.1 Gateway and Request Lifecycle
+The Gateway intercepts inbound user prompts, chat history, metadata, and runtime system contexts. It normalizes representations, establishes the unique request correlation context, and orchestrates the stage-by-stage pipeline:
+- **Phase 1: Ingestion & Normalization:** Unicode normalization, payload unwrapping, metadata extraction.
+- **Phase 2: Provenance Binding:** Assigning security principals and source trust tiers.
+- **Phase 3: Pre-Execution Assessment:** Evaluating detectors and policy rules prior to dispatching tokens to the model.
+- **Phase 4: Output & Tool Interception:** Validating raw model output and gating any requested function/tool calls.
+
+### 2.2 Content Provenance and Trust Boundaries
+Language models inherently conflate instructions with data when concatenated into a flat context window. SentinelLLM establishes strict data provenance tagging:
+- **High-Trust (System & Verified Operator):** Developer system prompts, immutably signed configurations.
+- **Medium-Trust (Authenticated User):** Direct user inputs provided within an active session.
+- **Low-Trust / Untrusted (External Context):** Third-party web pages, retrieval-augmented generation (RAG) chunks, emails, documents, and external tool outputs.
+
+Untrusted content is isolated using structural framing and provenance tokens so that policy enforcement points can determine whether an instruction originated from an authorized user or an untrusted external chunk.
+
+### 2.3 Security Detectors (Signal Layer)
+The detector subsystem hosts modular, swappable analytical passes:
+- **Heuristic Pattern Matchers:** Regex signatures, delimiter clash checks, canary token leakage detectors, known jailbreak sequences.
+- **Semantic & Embedding Detectors:** Vector similarity against known adversarial injection datasets.
+- **Auxiliary Classifier Checks:** Compact classification models specialized in prompt injection and toxic payload detection.
+
+> [!IMPORTANT]
+> **Separation of Detection and Enforcement:** Detector outputs are purely probabilistic analytical signals (e.g., confidence scores, risk classifications, extracted entity tags). **Detector output must never independently grant permissions or override structural policy boundaries.** Detectors provide inputs to the Policy Decision Point; they do not dictate policy.
+
+### 2.4 Policy Decisions (Policy Decision Point - PDP)
+The Policy Decision Point (PDP) evaluates contextual policy rules against:
+1. The caller's authenticated identity and role.
+2. The provenance tiers of all context fragments.
+3. The detector risk scores.
+4. The target operation (e.g., plain completion vs. privileged tool call).
+
+The PDP renders deterministic decisions:
+- `ALLOW`: Proceed with execution.
+- `SANITIZE`: Strip or escape risky tokens before passing to model.
+- `BLOCK`: Terminate request with a standardized security violation response.
+- `DEGRADE`: Strip privileged tool declarations from the model's system prompt, restricting it to non-actionable read-only dialogue.
+
+### 2.5 Tool Authorization and Controlled Execution (Policy Enforcement Point - PEP)
+Autonomous agent tool execution presents the highest blast radius in LLM applications. SentinelLLM implements an out-of-band proxy for model-invoked tool calls:
+- **No Direct Model Invocation:** The LLM cannot execute tools directly; it can only propose invocations through structured schemas.
+- **Action-Level Gating:** Every proposed tool invocation is validated against least-privilege capability manifests.
+- **Taint Tracking:** If an action proposal is derived from low-trust context (such as an indirect prompt injection from an email), high-impact actions (e.g., write, delete, outbound network transfer, credential access) are rejected regardless of detector scores.
+- **Schema & Parameter Validation:** Strict runtime type and value constraints enforce that generated arguments do not inject shell commands or path traversals.
+
+### 2.6 Output Validation and Redaction
+Before content leaves the runtime:
+- **Canary Leakage Detection:** Validates that secret internal canaries injected into system prompts were not echoed in model output.
+- **Sensitive Data Redaction (PII/Secret Filtering):** Regex and entropy-based identification of API keys, tokens, and personally identifiable information.
+- **Schema Conformance:** Asserts that structured output formats adhere strictly to caller specifications.
+
+### 2.7 Structured Audit Events & Telemetry
+Every stage emits immutable, structured JSON audit logs recording:
+- Trace and correlation IDs.
+- Caller identity and assigned trust tier.
+- Detector signals and measured latencies.
+- PDP decisions and rationale codes.
+- PEP tool interception logs (arguments, permission status, outcome).
+- Anonymized payload hashes (avoiding storage of raw sensitive user text).
+
+---
+
+## 3. Companion Evaluation Harness: PromptProbe
+
+PromptProbe is decoupled from the runtime protection package to provide neutral, reproducible adversarial benchmarking.
+
+### 3.1 Attack Execution & Harness
+- Executes automated multi-turn adversarial simulations against target interfaces.
+- Implements test suites for direct prompt injection, indirect prompt injection (poisoned RAG / tool output), jailbreaks, and privilege escalation.
+- Runs in black-box mode (evaluating output behavior) or white-box mode (evaluating internal audit traces and decision points).
+
+### 3.2 Benchmark Datasets and Result Reporting
+- Executes standardized benchmarks across pinned test datasets.
+- Computes formal evaluation metrics: Attack Success Rate (ASR), False Positive Rate (FPR), Benign Task Completion Rate (TCR), and Unauthorized Tool Execution Rate (UTER).
+- Generates reproducible, structured JSON evaluation artifacts detailing per-test execution traces, execution latencies, and statistical confidence intervals.
+
+---
+
+## 4. Current Implementation vs. Planned Roadmap
+
+| Architectural Component | Milestone 1 (Current Foundation) | Target Milestone |
+| :--- | :--- | :--- |
+| **Package Structure & Metadata** | Implemented (`sentinelllm`, `promptprobe`) | Foundation (Done) |
+| **Quality Gates & CI** | Implemented (Ruff, Mypy, Pytest, Build) | Foundation (Done) |
+| **Gateway & Interceptor** | Architectural specification | Milestone 2 |
+| **Provenance & Trust Tiers** | Architectural specification | Milestone 2 |
+| **Detection Subsystem** | Architectural specification | Milestone 3 |
+| **Policy Engine (PDP / PEP)** | Architectural specification | Milestone 4 |
+| **Tool Execution Proxy** | Architectural specification | Milestone 4 |
+| **Output Validator & Canary**| Architectural specification | Milestone 5 |
+| **PromptProbe Harness** | Package initialized; architecture defined | Milestone 6 |
+| **Benchmark Suites & Reports**| Directory structure; methodology defined | Milestone 7 |
