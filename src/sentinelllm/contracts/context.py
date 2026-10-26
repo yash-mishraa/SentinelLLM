@@ -36,3 +36,61 @@ class RequestContext(BaseModel):
                     "Credentials and secrets must never be placed in RequestContext metadata."
                 )
         return v
+
+
+def parse_untrusted_context(payload: dict[str, Any] | str) -> RequestContext:
+    """Safely parse untrusted serialized context, preventing identity and instruction escalation.
+
+    Security Invariants:
+    1. Caller-supplied payloads can NEVER assert an authenticated principal (is_authenticated=True
+       or custom roles/permissions). Any attempt raises ValueError.
+    2. All items within the context are strictly parsed through parse_untrusted_content,
+       preventing injection of ApplicationInstruction or TRUSTED_INSTRUCTIONS authority.
+    3. Metadata is scanned for sensitive key patterns.
+
+    Raises:
+        ValueError: If payload attempts identity spoofing or instruction escalation.
+        TypeError: If payload is not a dict or string.
+    """
+    from sentinelllm.contracts.messages import UserMessage, parse_untrusted_content
+
+    if isinstance(payload, str):
+        return RequestContext(items=(UserMessage(content=payload),))
+
+    if not isinstance(payload, dict):
+        raise TypeError(f"Expected dict or str for untrusted context, got {type(payload).__name__}")
+
+    # Enforce identity boundary: callers cannot assert authenticated identity via untrusted payload
+    principal_data = payload.get("principal")
+    if principal_data is not None:
+        if isinstance(principal_data, dict):
+            if principal_data.get("is_authenticated", False):
+                raise ValueError(
+                    "Security violation: Untrusted serialized context cannot supply "
+                    "an authenticated principal."
+                )
+            if principal_data.get("roles") or principal_data.get("permissions"):
+                raise ValueError(
+                    "Security violation: Untrusted serialized context cannot "
+                    "claim roles or permissions."
+                )
+        else:
+            raise ValueError(
+                "Security violation: Untrusted principal specification must be a "
+                "dictionary or omitted."
+            )
+
+    # Enforce content provenance: all items must parse via parse_untrusted_content
+    raw_items = payload.get("items", [])
+    if not isinstance(raw_items, list | tuple):
+        raise TypeError(f"Expected list or tuple for context items, got {type(raw_items).__name__}")
+
+    parsed_items = [parse_untrusted_content(item) for item in raw_items]
+
+    return RequestContext(
+        request_id=payload.get("request_id") or uuid4().hex,
+        correlation_id=payload.get("correlation_id"),
+        principal=None,  # Principal can only be bound out-of-band by verified host session
+        items=tuple(parsed_items),
+        metadata=payload.get("metadata", {}),
+    )

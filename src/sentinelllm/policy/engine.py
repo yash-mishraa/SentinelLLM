@@ -212,11 +212,8 @@ class PolicyDecisionPoint:
             )
 
         # 4. Detector-driven policy evaluation for authorized actions
-        has_high_injection = any(
-            f.severity == Severity.HIGH and f.category == "prompt_injection"
-            for f in request.findings
-        )
-        if has_high_injection:
+        has_high_findings = any(f.severity == Severity.HIGH for f in request.findings)
+        if has_high_findings:
             if self._config.high_findings_effect == Decision.BLOCK:
                 return SecurityDecision(
                     decision=Decision.BLOCK,

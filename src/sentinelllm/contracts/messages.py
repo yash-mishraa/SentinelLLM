@@ -111,20 +111,20 @@ def parse_untrusted_content(payload: dict[str, Any] | str) -> InboundUntrustedCo
         raise TypeError(f"Expected dict or str for untrusted content, got {type(payload).__name__}")
 
     prov = payload.get("provenance")
-    if prov in (
-        ContentProvenance.APPLICATION_INSTRUCTION,
-        ContentProvenance.APPLICATION_INSTRUCTION.value,
-    ):
+    prov_str = (
+        str(prov.value if hasattr(prov, "value") else prov).lower() if prov is not None else ""
+    )
+    if prov_str == ContentProvenance.APPLICATION_INSTRUCTION.value:
         raise ValueError(
             "Security violation: Untrusted serialized input cannot claim "
             "ApplicationInstruction provenance."
         )
 
     trust = payload.get("trust_classification")
-    if trust in (
-        TrustClassification.TRUSTED_INSTRUCTIONS,
-        TrustClassification.TRUSTED_INSTRUCTIONS.value,
-    ):
+    trust_str = (
+        str(trust.value if hasattr(trust, "value") else trust).lower() if trust is not None else ""
+    )
+    if trust_str == TrustClassification.TRUSTED_INSTRUCTIONS.value:
         raise ValueError(
             "Security violation: Untrusted serialized input cannot claim "
             "TRUSTED_INSTRUCTIONS authority."

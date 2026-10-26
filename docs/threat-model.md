@@ -72,20 +72,21 @@ We model threats from several distinct adversary archetypes:
 [TRUST TRANSITION & PROVENANCE LAYER]
   ├── Assigns immutable provenance tags (ApplicationInstruction, UserMessage, RetrievedChunk, ToolOutput)
   ├── Enforces trust classification invariants (assert_valid_trust_binding)
-  ├── Enforces anti-spoofing deserialization (parse_untrusted_content rejects ApplicationInstruction/TRUSTED_INSTRUCTIONS)
+  ├── Enforces anti-spoofing deserialization (parse_untrusted_content & parse_untrusted_context reject ApplicationInstruction, TRUSTED_INSTRUCTIONS, and caller-supplied authenticated principals)
   └── Evaluates heuristic detectors (InjectionPattern, Extraction, CanaryLeak - Milestone 3)
        │
 ───────▼──────────────────────────────────────────────────────────────────────
-[DETERMINISTIC POLICY DOMAIN (Milestones 4 & 5)]
+[DETERMINISTIC POLICY DOMAIN (Milestones 4, 5 & 8)]
   ├── Policy Decision Point (PDP): evaluates AuthenticatedPrincipal, actions, and findings
-  │   ├── Hardened precedence: authentication gate, critical containment, explicit rules, detector review policy
+  │   ├── Hardened precedence: authentication gate, critical containment, explicit rules, high-finding containment (Severity.HIGH)
   │   └── Clean detector results never grant permissions; critical findings override approvals
   ├── Policy Enforcement Point (PEP): intercepts agent tool calls
-  │   ├── Validates arguments against strict Pydantic schemas
+  │   ├── Validates arguments against strict Pydantic schemas (with sanitized error messages omitting raw secrets)
   │   ├── Generates pending approval on REVIEW decisions (halts execution)
   │   └── Verifies single-use, request-bound cryptographic approval tokens
-  └── Human Approval Workflow (Milestone 5)
+  └── Human Approval Workflow (Milestones 5 & 8)
       ├── Single-use tokens bound to: (principal, tool, action, argument digest, policy version, expiry)
+      ├── Atomically consumed via synchronized RLock primitives, preventing concurrent replay/double-spending
       ├── Requires explicitly authenticated supervisor with approval permissions
       └── In-memory store (process-local; distributed clusters require external atomic store)
        │

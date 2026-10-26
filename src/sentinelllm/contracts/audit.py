@@ -10,8 +10,24 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sentinelllm.contracts.decision import Decision
 
 _DISALLOWED_AUDIT_KEYS = re.compile(
-    r"(?i)(raw_?prompt|prompt_text|document_content|tool_args|raw_content|password|secret|api_?key)"
+    r"(?i)(raw_?prompt|prompt_text|document_content|tool_args|raw_content|"
+    r"password|secret|api[_-]?key|token|auth(orization)?|private[_-]?key|credential)"
 )
+
+
+def _scan_keys_recursively(data: Any) -> None:
+    """Recursively traverse metadata data structures to reject sensitive or credential keys."""
+    if isinstance(data, dict):
+        for key, val in data.items():
+            if _DISALLOWED_AUDIT_KEYS.search(str(key)):
+                raise ValueError(
+                    f"Disallowed audit metadata key '{key}'. Raw content, prompts, and "
+                    "credentials must never be stored in AuditEvent metadata."
+                )
+            _scan_keys_recursively(val)
+    elif isinstance(data, list | tuple | set | frozenset):
+        for item in data:
+            _scan_keys_recursively(item)
 
 
 class AuditEvent(BaseModel):
@@ -46,10 +62,5 @@ class AuditEvent(BaseModel):
     @classmethod
     def _reject_raw_content_in_audit_metadata(cls, v: dict[str, Any]) -> dict[str, Any]:
         """Prevent leakage of raw payloads or secrets into audit metadata."""
-        for key in v:
-            if _DISALLOWED_AUDIT_KEYS.search(key):
-                raise ValueError(
-                    f"Disallowed audit metadata key '{key}'. Raw content, prompts, and "
-                    "credentials must never be stored in AuditEvent metadata."
-                )
+        _scan_keys_recursively(v)
         return v

@@ -30,6 +30,7 @@ from sentinelllm.contracts import (
     TrustClassification,
     assert_valid_trust_binding,
     parse_untrusted_content,
+    parse_untrusted_context,
 )
 from sentinelllm.detectors import (
     BaseDetector,
@@ -102,4 +103,5 @@ __all__: Final[list[str]] = [
     "assert_valid_trust_binding",
     "compute_argument_hash",
     "parse_untrusted_content",
+    "parse_untrusted_context",
 ]

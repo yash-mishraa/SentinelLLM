@@ -1,7 +1,7 @@
 """Public contract models and types for SentinelLLM."""
 
 from sentinelllm.contracts.audit import AuditEvent
-from sentinelllm.contracts.context import RequestContext
+from sentinelllm.contracts.context import RequestContext, parse_untrusted_context
 from sentinelllm.contracts.decision import (
     Decision,
     SecurityDecision,
@@ -42,4 +42,5 @@ __all__ = [
     "UserMessage",
     "assert_valid_trust_binding",
     "parse_untrusted_content",
+    "parse_untrusted_context",
 ]

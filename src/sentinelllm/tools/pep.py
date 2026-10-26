@@ -21,6 +21,21 @@ from sentinelllm.policy.principal import AuthenticatedPrincipal
 from sentinelllm.tools.registry import ToolRegistry
 
 
+def _sanitize_validation_error(err: ValidationError) -> str:
+    """Format schema validation errors safely without echoing raw input values or secrets."""
+    sanitized: list[dict[str, str]] = []
+    for e in err.errors():
+        field_loc = ".".join(str(loc) for loc in e.get("loc", ()))
+        sanitized.append(
+            {
+                "field": field_loc if field_loc else "root",
+                "message": str(e.get("msg", "Validation error")),
+                "type": str(e.get("type", "value_error")),
+            }
+        )
+    return str(sanitized)
+
+
 class ToolExecutionResult(BaseModel):
     """Structured outcome returned by the Policy Enforcement Point."""
 
@@ -126,7 +141,9 @@ class PolicyEnforcementPoint:
                 tool_name=tool_name,
                 reason_code=REASON_DENY_INVALID_ARGUMENTS,
                 audit_events=tuple(audit_events),
-                error_message=f"Invalid arguments for tool '{tool_name}': {err.errors()}",
+                error_message=(
+                    f"Invalid arguments for tool '{tool_name}': {_sanitize_validation_error(err)}"
+                ),
             )
 
         # 3. Compute canonical argument hash
