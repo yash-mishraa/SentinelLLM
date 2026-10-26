@@ -200,6 +200,20 @@ PromptProbe (`promptprobe/`) implements empirical, reproducible benchmark execut
 - **Baseline Comparative Presets:** Evaluates `heuristic_defense` vs `no_detection_baseline`.
 - **CLI & Artifact Generation:** Executable via `python -m promptprobe run` emitting human-readable tables and machine-readable JSON artifacts.
 
+### 4.9 PromptProbe Multi-Step Scenario Evaluation Harness (Milestone 7)
+PromptProbe extends beyond single-case evaluations to multi-step adversarial traces:
+- **`SecurityScenario` & `ScenarioStep`:** Versioned, typed multi-turn scenario traces supporting `user_message`, `retrieved_chunk`, `tool_output`, `tool_action`, and `approval_decision`.
+- **`ScenarioRunner`:** Deterministically simulates multi-step execution traces while accumulating conversation context and security findings.
+- **End-to-End Invariants Enforced:**
+  - Preserves immutable provenance and trust classifications across steps.
+  - Ensures prompt text claiming elevated roles cannot alter the authenticated caller principal.
+  - Detects indirect injection inside RAG chunks and tool outputs.
+  - Critical canary leak findings unconditionally halt tool execution (`DENY_HIGH_RISK_FINDINGS`).
+  - Clean detector results never override an authorization denial.
+  - Sensitive tools halt safely in `pending_approval` and execute only upon authorized approval consumption.
+  - Detects post-approval argument modification and enforces single-use cryptographic argument binding (`DENY_APPROVAL_ARGUMENTS_MISMATCH`).
+- **CLI Commands:** `python -m promptprobe scenarios` and `make scenarios`.
+
 ---
 
 ## 5. Current Implementation vs. Planned Roadmap
@@ -215,5 +229,6 @@ PromptProbe (`promptprobe/`) implements empirical, reproducible benchmark execut
 | **Tool Execution Proxy** | Implemented (`PolicyEnforcementPoint`, `ToolRegistry`, simulated tools) | Milestone 4 (Done) |
 | **Human Approval Workflow** | Implemented (`ApprovalService`, `ApprovalRequest`, single-use bindings) | Milestone 5 (Done) |
 | **PromptProbe Harness & Benchmark** | Implemented (`BenchmarkRunner`, `DatasetContainer`, metrics, CLI) | Milestone 6 (Done) |
-| **Output Validator & Canary Redaction**| Architectural specification | Milestone 7 |
-| **Expanded Multi-Turn Benchmarks**| Directory structure; methodology defined | Milestone 8 |
+| **Multi-Step Adversarial Scenarios** | Implemented (`ScenarioRunner`, `SecurityScenario`, 10 scenarios) | Milestone 7 (Done) |
+| **Output Validator & Canary Redaction**| Architectural specification | Milestone 8 |
+| **Expanded Multi-Turn Benchmarks**| Directory structure; methodology defined | Milestone 9 |

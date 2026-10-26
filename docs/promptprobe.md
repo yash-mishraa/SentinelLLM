@@ -174,7 +174,51 @@ FAILURES IDENTIFIED:
 
 ## 6. Known Limitations & Research Transparency
 
-1. **Synthetic & Static Workloads:** The starter dataset consists of 23 hand-authored synthetic cases. It does not reflect the distributional complexity, multilingual formulations, or novel obfuscations encountered in live deployments.
+1. **Synthetic & Static Workloads:** The starter datasets (23 single cases and 10 multi-step scenarios) consist of hand-authored synthetic traces. They do not invoke an actual language model and cannot establish complete protection against all real-world or adaptive attacks.
 2. **Heuristic Rule Limitations:** Heuristic pattern scanners rely on regular expressions. Novel paraphrasing (such as `INJ-DIR-002`) can bypass regex matching without structural semantic analysis.
 3. **Small Sample Size:** Precision and recall figures on small sample sizes have wider statistical confidence intervals. Expanding dataset volume is planned for future research milestones.
 4. **Coverage Does Not Equal Security:** Passing unit test suites and benchmark evaluations demonstrates conformance with current specifications, not universal invulnerability to adaptive adversaries.
+
+---
+
+## 7. Multi-Step Adversarial Scenarios (`starter_scenarios_v1.json`)
+
+PromptProbe extends beyond isolated single-case evaluations to evaluate complete, deterministic security scenarios across multiple steps.
+
+The starter scenario dataset is located at [`benchmarks/datasets/starter_scenarios_v1.json`](file:///Users/yashmishra14/Personal%20projects/SentinelLLM/benchmarks/datasets/starter_scenarios_v1.json).
+
+### 7.1 Scenario Architecture & Supported Step Types
+Each scenario defines an ordered sequence of steps modeling a realistic application trace:
+- `user_message`: Inbound message from a user (`USER_MESSAGE`, `USER_INPUT`).
+- `retrieved_chunk`: Knowledge base or RAG retrieval fragment (`RETRIEVED_DOCUMENT`, `UNTRUSTED_CONTEXT`).
+- `tool_output`: Upstream output returned by a tool (`EXTERNAL_TOOL`, `UNTRUSTED_CONTEXT`).
+- `tool_action`: Proposed action evaluated against PEP authorization policies.
+- `approval_decision`: External supervisor authorization event (`approve` or `reject`).
+
+### 7.2 Evaluated Scenario Breakdown:
+
+| Scenario ID | Category | Key Security Invariants Verified |
+| :--- | :--- | :--- |
+| `SCEN-01-BENIGN-MULTI-TURN` | `benign_multi_turn` | Multi-turn benign conversation preserves provenance; authorized tools execute cleanly. |
+| `SCEN-02-DIRECT-INJ-UNAUTH-TOOL` | `direct_injection_unauthorized_tool` | Direct prompt injection is flagged; subsequent unauthorized tool call is blocked by PEP. |
+| `SCEN-03-RAG-INDIRECT-INJECTION` | `indirect_injection_rag` | Indirect injection in retrieved RAG chunk is flagged; unauthorized tool action blocked. |
+| `SCEN-04-TOOL-OUTPUT-INDIRECT-INJ` | `indirect_injection_tool` | Indirect injection payload within simulated tool output is flagged; unauthorized call blocked. |
+| `SCEN-05-ADMIN-IMPERSONATION-SPOOF` | `impersonation_spoofing` | Prompt text claiming `admin` identity and `*` permissions does NOT elevate caller principal. |
+| `SCEN-06-CANARY-EXPOSURE` | `canary_exposure` | Canary probe flags critical finding; presence of critical finding unconditionally halts tool execution. |
+| `SCEN-07-BENIGN-SEC-RESEARCH-DENIED-TOOL` | `benign_security_research` | Educational security discussion produces 0 findings, yet unauthorized tool is still denied (clean detectors never override authorization). |
+| `SCEN-08-AUTHORIZED-TOOL-CALL` | `authorized_tool_call` | Permitted caller with `records:read` executes single customer retrieval successfully. |
+| `SCEN-09-PENDING-APPROVAL-LIFECYCLE` | `approval_lifecycle` | Sensitive tool call safely halts in `pending_approval`; executes only after authorized manager approval. |
+| `SCEN-10-TAMPERED-AFTER-APPROVAL` | `tampered_approval` | Request held and approved; post-approval argument modification causes deterministic PEP rejection (`DENY_APPROVAL_ARGUMENTS_MISMATCH`). |
+
+### 7.3 Scenario Execution Commands
+```bash
+# Run multi-step scenario evaluations
+python -m promptprobe scenarios
+
+# Run both single-case benchmarks and multi-step scenarios
+python -m promptprobe run --include-scenarios
+
+# Run via Makefile
+make scenarios
+make benchmark
+```
