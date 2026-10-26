@@ -6,6 +6,13 @@ validation, and safe tool execution primitives for language model workloads.
 
 from typing import Final
 
+from sentinelllm.approvals import (
+    ApprovalRequest,
+    ApprovalService,
+    ApprovalStatus,
+    InMemoryApprovalStore,
+    compute_argument_hash,
+)
 from sentinelllm.contracts import (
     ApplicationInstruction,
     AuditEvent,
@@ -55,6 +62,9 @@ __version__: Final[str] = "0.1.0.dev0"
 __all__: Final[list[str]] = [
     "AnonymousPrincipal",
     "ApplicationInstruction",
+    "ApprovalRequest",
+    "ApprovalService",
+    "ApprovalStatus",
     "AuditEvent",
     "AuthenticatedPrincipal",
     "AuthorizationRequest",
@@ -66,6 +76,7 @@ __all__: Final[list[str]] = [
     "Decision",
     "DetectorRegistry",
     "ExtractionRule",
+    "InMemoryApprovalStore",
     "InboundUntrustedContent",
     "InjectionPatternDetector",
     "InjectionRule",
@@ -89,5 +100,6 @@ __all__: Final[list[str]] = [
     "TrustClassification",
     "__version__",
     "assert_valid_trust_binding",
+    "compute_argument_hash",
     "parse_untrusted_content",
 ]

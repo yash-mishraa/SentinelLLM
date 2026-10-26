@@ -125,9 +125,12 @@ class TestPolicyEnforcementPoint:
         assert result.output is None
         assert result.decision is not None and result.decision.decision == Decision.REVIEW
 
-        # Audit event records review_required
-        assert len(result.audit_events) == 1
-        assert result.audit_events[0].event_type == "tool.review_required"
+        # Audit events record approval creation and review requirement
+        assert len(result.audit_events) == 2
+        event_types = [e.event_type for e in result.audit_events]
+        assert "approval.created" in event_types
+        assert "tool.review_required" in event_types
+        assert result.approval_id is not None
 
     def test_unknown_tool_fails_closed(self) -> None:
         pep = PolicyEnforcementPoint()

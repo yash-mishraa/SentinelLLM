@@ -3,7 +3,7 @@
 from fnmatch import fnmatch
 from typing import Final
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from sentinelllm.contracts.decision import Decision, SecurityDecision, Severity
 from sentinelllm.policy.models import AuthorizationRequest
@@ -13,12 +13,26 @@ REASON_ALLOW_EXPLICIT: Final[str] = "ALLOW_EXPLICIT_PERMISSION"
 REASON_DENY_MISSING_IDENTITY: Final[str] = "DENY_MISSING_IDENTITY"
 REASON_DENY_INSUFFICIENT_PERMISSION: Final[str] = "DENY_INSUFFICIENT_PERMISSION"
 REASON_DENY_HIGH_RISK_FINDINGS: Final[str] = "DENY_HIGH_RISK_FINDINGS"
+REASON_REVIEW_DETECTOR_FINDINGS: Final[str] = "REVIEW_DETECTOR_FINDINGS"
 REASON_DENY_UNKNOWN_TOOL: Final[str] = "DENY_UNKNOWN_TOOL"
 REASON_DENY_INVALID_ARGUMENTS: Final[str] = "DENY_INVALID_ARGUMENTS"
 REASON_REVIEW_APPROVAL_REQUIRED: Final[str] = "REVIEW_APPROVAL_REQUIRED"
 REASON_DENY_MALFORMED_REQUEST: Final[str] = "DENY_MALFORMED_REQUEST"
 REASON_DENY_POLICY_UNAVAILABLE: Final[str] = "DENY_POLICY_UNAVAILABLE"
 REASON_DENY_DEFAULT_CLOSED: Final[str] = "DENY_DEFAULT_CLOSED"
+
+# Approval workflow reason codes
+REASON_DENY_APPROVAL_UNKNOWN: Final[str] = "DENY_APPROVAL_UNKNOWN"
+REASON_DENY_APPROVAL_PENDING: Final[str] = "DENY_APPROVAL_PENDING"
+REASON_DENY_APPROVAL_REJECTED: Final[str] = "DENY_APPROVAL_REJECTED"
+REASON_DENY_APPROVAL_EXPIRED: Final[str] = "DENY_APPROVAL_EXPIRED"
+REASON_DENY_APPROVAL_ALREADY_CONSUMED: Final[str] = "DENY_APPROVAL_ALREADY_CONSUMED"
+REASON_DENY_APPROVAL_PRINCIPAL_MISMATCH: Final[str] = "DENY_APPROVAL_PRINCIPAL_MISMATCH"
+REASON_DENY_APPROVAL_TOOL_MISMATCH: Final[str] = "DENY_APPROVAL_TOOL_MISMATCH"
+REASON_DENY_APPROVAL_ACTION_MISMATCH: Final[str] = "DENY_APPROVAL_ACTION_MISMATCH"
+REASON_DENY_APPROVAL_ARGUMENTS_MISMATCH: Final[str] = "DENY_APPROVAL_ARGUMENTS_MISMATCH"
+REASON_DENY_APPROVAL_POLICY_MISMATCH: Final[str] = "DENY_APPROVAL_POLICY_MISMATCH"
+REASON_DENY_APPROVAL_INVALID: Final[str] = "DENY_APPROVAL_INVALID"
 
 
 class PolicyRule(BaseModel):
@@ -50,6 +64,17 @@ class PolicyConfig(BaseModel):
     rules: tuple[PolicyRule, ...] = Field(default_factory=tuple)
     default_decision: Decision = Decision.BLOCK
     default_reason_code: str = REASON_DENY_DEFAULT_CLOSED
+    critical_findings_effect: Decision = Decision.BLOCK
+    high_findings_effect: Decision = Decision.BLOCK
+
+    @field_validator("critical_findings_effect", "high_findings_effect")
+    @classmethod
+    def _validate_finding_effects(cls, v: Decision) -> Decision:
+        if v not in (Decision.BLOCK, Decision.REVIEW):
+            raise ValueError(
+                f"Detector findings cannot produce effect {v}; only BLOCK or REVIEW permitted."
+            )
+        return v
 
 
 # Standard baseline policy rules for simulated tools
@@ -106,15 +131,20 @@ class PolicyDecisionPoint:
     def evaluate(self, request: AuthorizationRequest) -> SecurityDecision:
         """Evaluate an authorization request and return an authoritative SecurityDecision.
 
-        Precedence order:
+        Precedence order (fail-closed):
         1. Malformed request check -> BLOCK (DENY_MALFORMED_REQUEST)
         2. Authenticated identity check -> BLOCK (DENY_MISSING_IDENTITY)
-        3. High-risk finding containment rule -> BLOCK (DENY_HIGH_RISK_FINDINGS)
-        4. Matching rules evaluated in sequence:
-           a. Explicit BLOCK -> BLOCK
-           b. Approval required -> REVIEW
-           c. Explicit ALLOW -> ALLOW (only if permissions & roles satisfied)
-        5. Default fail-closed fallback -> BLOCK (DENY_INSUFFICIENT_PERMISSION)
+        3. Critical finding containment -> BLOCK (critical_findings_effect)
+        4. Rule matching & permission authorization:
+           a. Explicit BLOCK rule -> BLOCK
+           b. Match allow/review rule -> proceed to detector check
+           c. No matching rule or missing permissions -> BLOCK (DENY_INSUFFICIENT_PERMISSION)
+        5. Permitted action detector evaluation:
+           a. High-severity finding with BLOCK policy -> BLOCK (DENY_HIGH_RISK_FINDINGS)
+           b. High-severity finding with REVIEW policy -> REVIEW (REVIEW_DETECTOR_FINDINGS)
+        6. Rule effect:
+           a. Approval required / REVIEW rule -> REVIEW
+           b. Explicit ALLOW rule -> ALLOW
         """
         if not isinstance(request, AuthorizationRequest):
             return SecurityDecision(  # type: ignore[unreachable]
@@ -133,22 +163,18 @@ class PolicyDecisionPoint:
                 findings=request.findings,
             )
 
-        # 2. High-risk detector containment
-        # Critical findings (canary leak) or high-severity injection findings block execution
-        has_critical_findings = any(f.severity == Severity.CRITICAL for f in request.findings)
-        has_high_injection = any(
-            f.severity == Severity.HIGH and f.category == "prompt_injection"
-            for f in request.findings
-        )
-        if has_critical_findings or has_high_injection:
+        # 2. Critical detector containment (unconditional containment)
+        has_critical = any(f.severity == Severity.CRITICAL for f in request.findings)
+        if has_critical:
             return SecurityDecision(
-                decision=Decision.BLOCK,
+                decision=self._config.critical_findings_effect,
                 reason=REASON_DENY_HIGH_RISK_FINDINGS,
                 policy_version=self.policy_version,
                 findings=request.findings,
             )
 
-        # 3. Rule evaluation
+        # 3. Rule matching & authorization
+        matched_rule: PolicyRule | None = None
         for rule in self._config.rules:
             if not rule.matches(request.action, request.resource):
                 continue
@@ -163,16 +189,7 @@ class PolicyDecisionPoint:
             if missing_roles and "admin" not in principal.roles:
                 continue
 
-            # Check approval requirements
-            if rule.requires_approval or rule.effect == Decision.REVIEW:
-                return SecurityDecision(
-                    decision=Decision.REVIEW,
-                    reason=rule.reason_code,
-                    policy_version=self.policy_version,
-                    findings=request.findings,
-                    metadata={"rule_id": rule.rule_id, "explanation": rule.explanation},
-                )
-
+            # Explicit BLOCK terminates immediately
             if rule.effect == Decision.BLOCK:
                 return SecurityDecision(
                     decision=Decision.BLOCK,
@@ -182,16 +199,59 @@ class PolicyDecisionPoint:
                     metadata={"rule_id": rule.rule_id, "explanation": rule.explanation},
                 )
 
-            if rule.effect == Decision.ALLOW:
+            matched_rule = rule
+            break
+
+        if matched_rule is None:
+            # Default fail-closed fallback
+            return SecurityDecision(
+                decision=self._config.default_decision,
+                reason=REASON_DENY_INSUFFICIENT_PERMISSION,
+                policy_version=self.policy_version,
+                findings=request.findings,
+            )
+
+        # 4. Detector-driven policy evaluation for authorized actions
+        has_high_injection = any(
+            f.severity == Severity.HIGH and f.category == "prompt_injection"
+            for f in request.findings
+        )
+        if has_high_injection:
+            if self._config.high_findings_effect == Decision.BLOCK:
                 return SecurityDecision(
-                    decision=Decision.ALLOW,
-                    reason=rule.reason_code,
+                    decision=Decision.BLOCK,
+                    reason=REASON_DENY_HIGH_RISK_FINDINGS,
                     policy_version=self.policy_version,
                     findings=request.findings,
-                    metadata={"rule_id": rule.rule_id, "explanation": rule.explanation},
+                )
+            if self._config.high_findings_effect == Decision.REVIEW:
+                return SecurityDecision(
+                    decision=Decision.REVIEW,
+                    reason=REASON_REVIEW_DETECTOR_FINDINGS,
+                    policy_version=self.policy_version,
+                    findings=request.findings,
+                    metadata={"escalated_from": matched_rule.rule_id},
                 )
 
-        # 4. Default fail-closed fallback
+        # 5. Rule execution effect
+        if matched_rule.requires_approval or matched_rule.effect == Decision.REVIEW:
+            return SecurityDecision(
+                decision=Decision.REVIEW,
+                reason=matched_rule.reason_code,
+                policy_version=self.policy_version,
+                findings=request.findings,
+                metadata={"rule_id": matched_rule.rule_id, "explanation": matched_rule.explanation},
+            )
+
+        if matched_rule.effect == Decision.ALLOW:
+            return SecurityDecision(
+                decision=Decision.ALLOW,
+                reason=matched_rule.reason_code,
+                policy_version=self.policy_version,
+                findings=request.findings,
+                metadata={"rule_id": matched_rule.rule_id, "explanation": matched_rule.explanation},
+            )
+
         return SecurityDecision(
             decision=self._config.default_decision,
             reason=REASON_DENY_INSUFFICIENT_PERMISSION,

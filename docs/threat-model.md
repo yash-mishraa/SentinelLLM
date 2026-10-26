@@ -76,13 +76,18 @@ We model threats from several distinct adversary archetypes:
   └── Evaluates heuristic detectors (InjectionPattern, Extraction, CanaryLeak - Milestone 3)
        │
 ───────▼──────────────────────────────────────────────────────────────────────
-[DETERMINISTIC POLICY DOMAIN (Milestone 4)]
+[DETERMINISTIC POLICY DOMAIN (Milestones 4 & 5)]
   ├── Policy Decision Point (PDP): evaluates AuthenticatedPrincipal, actions, and findings
-  │   └── Deterministic precedence: authentication gate, critical containment, deny rules, untrusted restriction, allow rules
-  └── Policy Enforcement Point (PEP): intercepts agent tool calls
-      ├── Validates arguments against strict Pydantic schemas
-      ├── Verifies PDP authorization decisions and handles review states
-      └── Confines execution errors without process disruption
+  │   ├── Hardened precedence: authentication gate, critical containment, explicit rules, detector review policy
+  │   └── Clean detector results never grant permissions; critical findings override approvals
+  ├── Policy Enforcement Point (PEP): intercepts agent tool calls
+  │   ├── Validates arguments against strict Pydantic schemas
+  │   ├── Generates pending approval on REVIEW decisions (halts execution)
+  │   └── Verifies single-use, request-bound cryptographic approval tokens
+  └── Human Approval Workflow (Milestone 5)
+      ├── Single-use tokens bound to: (principal, tool, action, argument digest, policy version, expiry)
+      ├── Requires explicitly authenticated supervisor with approval permissions
+      └── In-memory store (process-local; distributed clusters require external atomic store)
        │
 ═══════╪══════════════════════════════════════════════════════════════════════
        │   Authorized Action Boundary

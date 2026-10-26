@@ -4,11 +4,14 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from sentinelllm.approvals.models import compute_argument_hash
+from sentinelllm.approvals.service import ApprovalService
 from sentinelllm.contracts.audit import AuditEvent
-from sentinelllm.contracts.decision import Decision, SecurityDecision, SecurityFinding
+from sentinelllm.contracts.decision import Decision, SecurityDecision, SecurityFinding, Severity
 from sentinelllm.contracts.messages import ToolOutput
 from sentinelllm.contracts.provenance import ContentProvenance, TrustClassification
 from sentinelllm.policy.engine import (
+    REASON_DENY_HIGH_RISK_FINDINGS,
     REASON_DENY_INVALID_ARGUMENTS,
     REASON_DENY_UNKNOWN_TOOL,
     PolicyDecisionPoint,
@@ -28,6 +31,7 @@ class ToolExecutionResult(BaseModel):
     decision: SecurityDecision | None = None
     reason_code: str
     output: ToolOutput | None = None
+    approval_id: str | None = None
     audit_events: tuple[AuditEvent, ...] = Field(default_factory=tuple)
     error_message: str | None = None
 
@@ -44,10 +48,14 @@ class PolicyEnforcementPoint:
         self,
         pdp: PolicyDecisionPoint | None = None,
         registry: ToolRegistry | None = None,
+        approval_service: ApprovalService | None = None,
         component_name: str = "policy_enforcement_point",
     ) -> None:
         self.pdp = pdp if pdp is not None else PolicyDecisionPoint()
         self.registry = registry if registry is not None else ToolRegistry.create_default_registry()
+        self.approval_service = (
+            approval_service if approval_service is not None else ApprovalService()
+        )
         self.component_name = component_name
 
     def invoke(
@@ -58,6 +66,7 @@ class PolicyEnforcementPoint:
         context_trust: TrustClassification = TrustClassification.UNTRUSTED_CONTEXT,
         findings: tuple[SecurityFinding, ...] = (),
         request_id: str | None = None,
+        approval_id: str | None = None,
     ) -> ToolExecutionResult:
         """Evaluate authorization and execute tool if permitted.
 
@@ -120,63 +129,123 @@ class PolicyEnforcementPoint:
                 error_message=f"Invalid arguments for tool '{tool_name}': {err.errors()}",
             )
 
-        # 3. Request authorization decision from PDP
-        auth_request = AuthorizationRequest(
-            principal=principal,
-            action=spec.action_identifier,
-            resource=spec.resource_classification,
-            context_trust=context_trust,
-            findings=findings,
-            policy_version=self.pdp.policy_version,
-            request_id=effective_req_id,
-            metadata={"tool_name": tool_name},
-        )
-        decision = self.pdp.evaluate(auth_request)
+        # 3. Compute canonical argument hash
+        argument_hash = compute_argument_hash(validated_args)
 
-        # 4. Enforce decision outcome
-        if decision.decision == Decision.BLOCK:
-            block_event = AuditEvent(
-                request_id=effective_req_id,
-                event_type="tool.rejected",
-                component=self.component_name,
-                decision=Decision.BLOCK,
-                policy_version=decision.policy_version,
-                metadata={
-                    "tool_name": tool_name,
-                    "reason_code": decision.reason,
-                    "principal_id": principal.principal_id if principal else "anonymous",
-                },
-            )
-            audit_events.append(block_event)
-            return ToolExecutionResult(
-                status="denied",
-                tool_name=tool_name,
-                decision=decision,
-                reason_code=decision.reason,
-                audit_events=tuple(audit_events),
-            )
+        decision: SecurityDecision | None = None
 
-        if decision.decision == Decision.REVIEW:
-            review_event = AuditEvent(
-                request_id=effective_req_id,
-                event_type="tool.review_required",
-                component=self.component_name,
-                decision=Decision.REVIEW,
-                policy_version=decision.policy_version,
-                metadata={
-                    "tool_name": tool_name,
-                    "reason_code": decision.reason,
-                    "principal_id": principal.principal_id if principal else "anonymous",
-                },
-            )
-            audit_events.append(review_event)
-            return ToolExecutionResult(
-                status="pending_approval",
+        if approval_id is not None:
+            # Critical findings unconditionally block execution regardless of prior approval
+            if any(f.severity == Severity.CRITICAL for f in findings):
+                block_event = AuditEvent(
+                    request_id=effective_req_id,
+                    event_type="tool.rejected",
+                    component=self.component_name,
+                    decision=Decision.BLOCK,
+                    policy_version=self.pdp.policy_version,
+                    metadata={
+                        "tool_name": tool_name,
+                        "reason_code": REASON_DENY_HIGH_RISK_FINDINGS,
+                        "approval_id": approval_id,
+                    },
+                )
+                audit_events.append(block_event)
+                return ToolExecutionResult(
+                    status="denied",
+                    tool_name=tool_name,
+                    reason_code=REASON_DENY_HIGH_RISK_FINDINGS,
+                    approval_id=approval_id,
+                    audit_events=tuple(audit_events),
+                    error_message="Action blocked due to critical security findings.",
+                )
+
+            consumed_ok, reason_code, consume_event = self.approval_service.consume(
+                approval_id=approval_id,
+                principal=principal,
                 tool_name=tool_name,
-                decision=decision,
-                reason_code=decision.reason,
-                audit_events=tuple(audit_events),
+                action_name=spec.action_identifier,
+                argument_hash=argument_hash,
+                policy_version=self.pdp.policy_version,
             )
+            audit_events.append(consume_event)
+            if not consumed_ok:
+                return ToolExecutionResult(
+                    status="denied",
+                    tool_name=tool_name,
+                    reason_code=reason_code,
+                    approval_id=approval_id,
+                    audit_events=tuple(audit_events),
+                    error_message=f"Approval validation failed: {reason_code}",
+                )
+        else:
+            # Standard authorization decision via PDP
+            auth_request = AuthorizationRequest(
+                principal=principal,
+                action=spec.action_identifier,
+                resource=spec.resource_classification,
+                context_trust=context_trust,
+                findings=findings,
+                policy_version=self.pdp.policy_version,
+                request_id=effective_req_id,
+                metadata={"tool_name": tool_name},
+            )
+            decision = self.pdp.evaluate(auth_request)
+
+            # 4. Enforce decision outcome
+            if decision.decision == Decision.BLOCK:
+                block_event = AuditEvent(
+                    request_id=effective_req_id,
+                    event_type="tool.rejected",
+                    component=self.component_name,
+                    decision=Decision.BLOCK,
+                    policy_version=decision.policy_version,
+                    metadata={
+                        "tool_name": tool_name,
+                        "reason_code": decision.reason,
+                        "principal_id": principal.principal_id if principal else "anonymous",
+                    },
+                )
+                audit_events.append(block_event)
+                return ToolExecutionResult(
+                    status="denied",
+                    tool_name=tool_name,
+                    decision=decision,
+                    reason_code=decision.reason,
+                    audit_events=tuple(audit_events),
+                )
+
+            if decision.decision == Decision.REVIEW:
+                record, approval_event = self.approval_service.create_approval(
+                    request_id=effective_req_id,
+                    principal_id=principal.principal_id if principal else "anonymous",
+                    tool_name=tool_name,
+                    action_name=spec.action_identifier,
+                    argument_hash=argument_hash,
+                    policy_version=decision.policy_version or self.pdp.policy_version,
+                )
+                audit_events.append(approval_event)
+                review_event = AuditEvent(
+                    request_id=effective_req_id,
+                    event_type="tool.review_required",
+                    component=self.component_name,
+                    decision=Decision.REVIEW,
+                    policy_version=decision.policy_version,
+                    metadata={
+                        "tool_name": tool_name,
+                        "reason_code": decision.reason,
+                        "principal_id": principal.principal_id if principal else "anonymous",
+                        "approval_id": record.approval_id,
+                    },
+                )
+                audit_events.append(review_event)
+                return ToolExecutionResult(
+                    status="pending_approval",
+                    tool_name=tool_name,
+                    decision=decision,
+                    reason_code=decision.reason,
+                    approval_id=record.approval_id,
+                    audit_events=tuple(audit_events),
+                )
 
         # 5. Execute authorized tool
         try:
@@ -187,37 +256,46 @@ class PolicyEnforcementPoint:
                 provenance=ContentProvenance.EXTERNAL_TOOL,
                 trust_classification=TrustClassification.UNTRUSTED_CONTEXT,
             )
+            executed_metadata: dict[str, Any] = {
+                "tool_name": tool_name,
+                "reason_code": decision.reason if decision else "APPROVAL_CONSUMED",
+                "principal_id": principal.principal_id if principal else "anonymous",
+            }
+            if approval_id is not None:
+                executed_metadata["approval_id"] = approval_id
+
             executed_event = AuditEvent(
                 request_id=effective_req_id,
                 event_type="tool.executed",
                 component=self.component_name,
                 decision=Decision.ALLOW,
-                policy_version=decision.policy_version,
-                metadata={
-                    "tool_name": tool_name,
-                    "reason_code": decision.reason,
-                    "principal_id": principal.principal_id if principal else "anonymous",
-                },
+                policy_version=decision.policy_version if decision else self.pdp.policy_version,
+                metadata=executed_metadata,
             )
             audit_events.append(executed_event)
             return ToolExecutionResult(
                 status="executed",
                 tool_name=tool_name,
                 decision=decision,
-                reason_code=decision.reason,
+                reason_code=decision.reason if decision else "APPROVAL_CONSUMED",
                 output=tool_output,
+                approval_id=approval_id,
                 audit_events=tuple(audit_events),
             )
         except Exception as ex:
+            error_metadata: dict[str, Any] = {
+                "tool_name": tool_name,
+                "error": type(ex).__name__,
+            }
+            if approval_id is not None:
+                error_metadata["approval_id"] = approval_id
+
             error_event = AuditEvent(
                 request_id=effective_req_id,
                 event_type="tool.error",
                 component=self.component_name,
                 decision=Decision.BLOCK,
-                metadata={
-                    "tool_name": tool_name,
-                    "error": type(ex).__name__,
-                },
+                metadata=error_metadata,
             )
             audit_events.append(error_event)
             return ToolExecutionResult(
@@ -225,6 +303,7 @@ class PolicyEnforcementPoint:
                 tool_name=tool_name,
                 decision=decision,
                 reason_code="EXECUTION_ERROR",
+                approval_id=approval_id,
                 audit_events=tuple(audit_events),
                 error_message=str(ex),
             )

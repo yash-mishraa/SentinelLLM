@@ -180,6 +180,15 @@ The policy subsystem (`src/sentinelllm/policy/` and `src/sentinelllm/tools/`) im
 - **`PolicyEnforcementPoint` (PEP):** Intercepts proposed tool invocations, validates arguments against Pydantic schemas, queries the PDP, enforces permissions/approvals, and executes tools safely with exception containment.
 - **Simulated Tool Suite:** Synthetic tools (`search_documents`, `read_customer_record`, `export_customer_records`) backed by isolated mock datasets for safe, zero-side-effect evaluation.
 
+### 4.7 Human Approval Workflow & Policy Hardening (Milestone 5)
+The approval subsystem (`src/sentinelllm/approvals/`) establishes an explicit human authorization loop:
+- **Lifecycle States:** `PENDING`, `APPROVED`, `REJECTED`, `EXPIRED`, `CONSUMED`.
+- **Request Binding:** Approvals bind `request_id`, requesting `principal_id`, `tool_name`, `action_name`, SHA-256 canonical argument digest (`compute_argument_hash`), `policy_version`, and UTC expiry timestamps.
+- **Single-Use & Invalidation:** Approvals expire and are single-use (`CONSUMED`). Any modification to arguments, tool name, or policy version fails closed (`DENY_APPROVAL_ARGUMENTS_MISMATCH`, etc.).
+- **Supervisor Authorization:** Approvals require an explicit `AuthenticatedPrincipal` with approval permissions (`approvals:manage` or `admin`). Prompt instructions, tool output, or untrusted metadata can never approve or modify requests.
+- **Hardened Precedence:** Precedence strictly separates detection, authorization, and enforcement. Clean detector results never grant permissions. Critical findings (canary leak) unconditionally block tool execution, even with a valid approval. High-severity injection findings can be configured to block or escalate to supervisor review.
+- **Process-Local Store:** `InMemoryApprovalStore` provides local in-memory storage for development and testing; distributed cluster deployments require an atomic external store.
+
 ---
 
 ## 5. Current Implementation vs. Planned Roadmap
@@ -193,6 +202,7 @@ The policy subsystem (`src/sentinelllm/policy/` and `src/sentinelllm/tools/`) im
 | **Heuristic Detection Subsystem** | Implemented (`InjectionPattern`, `InstructionExtraction`, `CanaryLeak`, `DetectorRegistry`) | Milestone 3 (Done) |
 | **Policy Engine (PDP / PEP)** | Implemented (`PolicyDecisionPoint`, `AuthenticatedPrincipal`, deterministic rules) | Milestone 4 (Done) |
 | **Tool Execution Proxy** | Implemented (`PolicyEnforcementPoint`, `ToolRegistry`, simulated tools) | Milestone 4 (Done) |
-| **Output Validator & Canary Redaction**| Architectural specification | Milestone 5 |
-| **PromptProbe Harness** | Package initialized; architecture defined | Milestone 6 |
-| **Benchmark Suites & Reports**| Directory structure; methodology defined | Milestone 7 |
+| **Human Approval Workflow** | Implemented (`ApprovalService`, `ApprovalRequest`, single-use bindings) | Milestone 5 (Done) |
+| **Output Validator & Canary Redaction**| Architectural specification | Milestone 6 |
+| **PromptProbe Harness** | Package initialized; architecture defined | Milestone 7 |
+| **Benchmark Suites & Reports**| Directory structure; methodology defined | Milestone 8 |
