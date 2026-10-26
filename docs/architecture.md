@@ -163,6 +163,15 @@ A central invariant of SentinelLLM is the rigorous distinction between **physica
 ### 4.4 Minimal Request Lifecycle Orchestrator (`LifecycleOrchestrator`)
 The synchronous lifecycle orchestrator processes validated `RequestContext` instances without modifying item provenances, emits initial `lifecycle.request_received` and `lifecycle.context_processed` audit events with UTC timestamps, and produces a deterministic `LifecycleResult`.
 
+### 4.5 Heuristic Detection Subsystem (Milestone 3)
+The detection subsystem (`src/sentinelllm/detectors/`) introduces a modular scanner suite integrated directly into the `LifecycleOrchestrator`:
+- **`BaseDetector`:** Typed abstract base class defining `detector_id`, `finding_category`, and `scan()`.
+- **`InjectionPatternDetector`:** Scans for instruction overrides, persona jailbreaks, and delimiter manipulation (`INJ_001` through `INJ_004`).
+- **`InstructionExtractionDetector`:** Scans for elicitation of system prompts and developer directives (`EXT_001` through `EXT_003`).
+- **`CanaryLeakDetector`:** Synthetic token exposure monitor reporting stable canary IDs and safe hash fingerprints without revealing secrets.
+- **`DetectorRegistry`:** Aggregates findings in deterministic order and tracks item provenance metadata.
+- **Lifecycle Integration:** The orchestrator executes the configured registry, emits `lifecycle.findings_detected` audit events, and returns findings on `LifecycleResult.findings` without automatically executing blocking actions.
+
 ---
 
 ## 5. Current Implementation vs. Planned Roadmap
@@ -173,10 +182,9 @@ The synchronous lifecycle orchestrator processes validated `RequestContext` inst
 | **Quality Gates & CI** | Implemented (Ruff, Mypy, Pytest, Build) | Milestone 1 (Done) |
 | **Typed Security Contracts** | Implemented (`provenance`, `messages`, `context`, `decision`, `audit`) | Milestone 2 (Done) |
 | **Minimal Lifecycle Orchestrator** | Implemented (`LifecycleOrchestrator`, `LifecycleResult`) | Milestone 2 (Done) |
-| **Gateway & Interceptor** | Architectural specification | Milestone 3 |
-| **Detection Subsystem** | Architectural specification | Milestone 3 |
+| **Heuristic Detection Subsystem** | Implemented (`InjectionPattern`, `InstructionExtraction`, `CanaryLeak`, `DetectorRegistry`) | Milestone 3 (Done) |
 | **Policy Engine (PDP / PEP)** | Architectural specification | Milestone 4 |
 | **Tool Execution Proxy** | Architectural specification | Milestone 4 |
-| **Output Validator & Canary**| Architectural specification | Milestone 5 |
+| **Output Validator & Canary Redaction**| Architectural specification | Milestone 5 |
 | **PromptProbe Harness** | Package initialized; architecture defined | Milestone 6 |
 | **Benchmark Suites & Reports**| Directory structure; methodology defined | Milestone 7 |

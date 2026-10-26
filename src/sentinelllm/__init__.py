@@ -22,6 +22,16 @@ from sentinelllm.contracts import (
     TrustClassification,
     assert_valid_trust_binding,
 )
+from sentinelllm.detectors import (
+    BaseDetector,
+    CanaryConfig,
+    CanaryLeakDetector,
+    DetectorRegistry,
+    ExtractionRule,
+    InjectionPatternDetector,
+    InjectionRule,
+    InstructionExtractionDetector,
+)
 from sentinelllm.orchestrator import LifecycleOrchestrator, LifecycleResult
 
 __version__: Final[str] = "0.1.0.dev0"
@@ -30,8 +40,16 @@ __all__: Final[list[str]] = [
     "ApplicationInstruction",
     "AuditEvent",
     "BaseContentItem",
+    "BaseDetector",
+    "CanaryConfig",
+    "CanaryLeakDetector",
     "ContentProvenance",
     "Decision",
+    "DetectorRegistry",
+    "ExtractionRule",
+    "InjectionPatternDetector",
+    "InjectionRule",
+    "InstructionExtractionDetector",
     "LifecycleOrchestrator",
     "LifecycleResult",
     "RequestContext",

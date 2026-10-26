@@ -72,7 +72,7 @@ We model threats from several distinct adversary archetypes:
 [TRUST TRANSITION & PROVENANCE LAYER]
   ├── Assigns immutable provenance tags (ApplicationInstruction, UserMessage, RetrievedChunk, ToolOutput)
   ├── Enforces trust classification invariants (assert_valid_trust_binding)
-  └── Evaluates probabilistic detectors (planned Milestone 3)
+  └── Evaluates heuristic detectors (InjectionPattern, Extraction, CanaryLeak - Milestone 3)
        │
 ───────▼──────────────────────────────────────────────────────────────────────
 [DETERMINISTIC POLICY DOMAIN]

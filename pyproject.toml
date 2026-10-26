@@ -145,6 +145,8 @@ exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
+    "@abstractmethod",
+    "\\.\\.\\.",
     "if __name__ == .__main__.:",
 ]
 show_missing = true
