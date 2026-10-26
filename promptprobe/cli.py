@@ -251,6 +251,9 @@ def main(argv: list[str] | None = None) -> int:
         help="Deterministic pseudorandom seed (default: 42)",
     )
 
+    # 3. demo command (end-to-end walkthrough)
+    subparsers.add_parser("demo", help="Run end-to-end interactive runtime security demonstration")
+
     args = parser.parse_args(argv)
 
     if args.command is None:
@@ -262,6 +265,11 @@ def main(argv: list[str] | None = None) -> int:
         args.include_scenarios = False
 
     try:
+        if args.command == "demo":
+            from sentinelllm.demo import run_demo
+
+            return run_demo()
+
         if args.command == "scenarios":
             return run_scenarios(
                 config=args.config,

@@ -12,6 +12,8 @@ from sentinelllm.tools.pep import PolicyEnforcementPoint
 BASELINE_NO_DETECTION: Final[str] = "no_detection_baseline"
 BASELINE_HEURISTIC: Final[str] = "heuristic_defense"
 
+type BaselineSuite = tuple[DetectorRegistry, PolicyDecisionPoint, PolicyEnforcementPoint]
+
 # Benchmark synthetic canary token
 BENCHMARK_CANARIES: Final[list[CanaryConfig]] = [
     CanaryConfig(
@@ -21,9 +23,7 @@ BENCHMARK_CANARIES: Final[list[CanaryConfig]] = [
 ]
 
 
-def create_heuristic_defense() -> (
-    tuple[DetectorRegistry, PolicyDecisionPoint, PolicyEnforcementPoint]
-):
+def create_heuristic_defense() -> BaselineSuite:
     """Create the full heuristic defense suite (current SentinelLLM implementation)."""
     registry = DetectorRegistry()
     registry.register(InjectionPatternDetector())
@@ -35,9 +35,7 @@ def create_heuristic_defense() -> (
     return registry, pdp, pep
 
 
-def create_no_detection_baseline() -> (
-    tuple[DetectorRegistry, PolicyDecisionPoint, PolicyEnforcementPoint]
-):
+def create_no_detection_baseline() -> BaselineSuite:
     """Create an unprotected baseline with zero active detectors."""
     # Explicitly empty detector suite with zero registered scanners
     empty_registry = DetectorRegistry(detectors=[])

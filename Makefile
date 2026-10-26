@@ -1,4 +1,4 @@
-.PHONY: help install lint format typecheck test check build clean benchmark scenarios
+.PHONY: help install lint format typecheck test check build clean benchmark scenarios demo
 
 PYTHON ?= $(shell if [ -f .venv/bin/python ]; then echo .venv/bin/python; else echo python3; fi)
 PIP ?= $(shell if [ -f .venv/bin/pip ]; then echo .venv/bin/pip; else echo pip; fi)
@@ -41,6 +41,9 @@ benchmark:
 
 scenarios:
 	$(PYTHON) -m promptprobe scenarios
+
+demo:
+	$(PYTHON) -m sentinelllm.demo
 
 
 build:
