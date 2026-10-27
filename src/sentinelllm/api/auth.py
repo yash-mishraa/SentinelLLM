@@ -153,12 +153,26 @@ class ApiKeyRegistry:
 
         if not registry._records:
             # Check individual role keys from environment variables
-            admin_key = os.getenv("SENTINELLLM_ADMIN_KEY") or os.getenv("SENTINEL_ADMIN_KEY")
-            supervisor_key = os.getenv("SENTINELLLM_SUPERVISOR_KEY") or os.getenv(
-                "SENTINEL_SUPERVISOR_KEY"
+            admin_key = (
+                os.getenv("SENTINELLLM_ADMIN_KEY")
+                or os.getenv("SENTINELLLM_ROLE_ADMIN_KEY")
+                or os.getenv("SENTINEL_ADMIN_KEY")
             )
-            analyst_key = os.getenv("SENTINELLLM_ANALYST_KEY") or os.getenv("SENTINEL_ANALYST_KEY")
-            guest_key = os.getenv("SENTINELLLM_GUEST_KEY") or os.getenv("SENTINEL_GUEST_KEY")
+            supervisor_key = (
+                os.getenv("SENTINELLLM_SUPERVISOR_KEY")
+                or os.getenv("SENTINELLLM_ROLE_SUPERVISOR_KEY")
+                or os.getenv("SENTINEL_SUPERVISOR_KEY")
+            )
+            analyst_key = (
+                os.getenv("SENTINELLLM_ANALYST_KEY")
+                or os.getenv("SENTINELLLM_ROLE_ANALYST_KEY")
+                or os.getenv("SENTINEL_ANALYST_KEY")
+            )
+            guest_key = (
+                os.getenv("SENTINELLLM_GUEST_KEY")
+                or os.getenv("SENTINELLLM_ROLE_GUEST_KEY")
+                or os.getenv("SENTINEL_GUEST_KEY")
+            )
 
             if admin_key:
                 if is_production and admin_key in INSECURE_DEV_KEYS:
