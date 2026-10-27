@@ -212,11 +212,15 @@ def create_app(config: ApiConfig | None = None) -> FastAPI:
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         logger.error("Unhandled server exception: %s", exc, exc_info=True)
+        err_msg = str(exc)
+        err_detail = (
+            f"{type(exc).__name__}: {err_msg}" if err_msg else "An internal server error occurred."
+        )
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
-                "error": "Internal Server Error",
-                "detail": "An internal security or processing error occurred.",
+                "error": type(exc).__name__,
+                "detail": err_detail,
                 "request_id": getattr(request.state, "request_id", None),
             },
         )

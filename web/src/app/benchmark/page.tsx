@@ -47,14 +47,23 @@ export default function BenchmarkPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const [sum, hSum, hist] = await Promise.all([
+      const [sum, hSum, hist] = await Promise.allSettled([
         getBenchmarkSummary(),
         getHybridBenchmarkSummary(),
         getBenchmarkHistory(10),
       ]);
-      setSummary(sum || null);
-      setHybridSummary(hSum || null);
-      setHistory(Array.isArray(hist) ? hist : []);
+      if (sum.status === "fulfilled" && sum.value) setSummary(sum.value);
+      if (hSum.status === "fulfilled" && hSum.value) setHybridSummary(hSum.value);
+      if (hist.status === "fulfilled" && Array.isArray(hist.value)) {
+        setHistory(hist.value);
+      }
+      if (sum.status === "rejected") {
+        setError(sum.reason instanceof Error ? sum.reason.message : String(sum.reason));
+      } else if (hSum.status === "rejected") {
+        setError(hSum.reason instanceof Error ? hSum.reason.message : String(hSum.reason));
+      } else if (hist.status === "rejected") {
+        setHistory([]);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
       setHistory([]);
