@@ -114,16 +114,18 @@ export default function PlaygroundPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1c2536]">
         <div>
-          <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-            Adversarial Attack Playground
-            <Badge variant="accent">INTERCEPTION LAYER</Badge>
-          </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Test how SentinelLLM heuristic detectors and PDP policies inspect, classify, and quarantine untrusted inputs.
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-100">
+              Adversarial Attack Playground
+            </h1>
+            <Badge variant="accent" className="text-[10px]">INGRESS SCANNER</Badge>
+          </div>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Test prompt injection heuristics and deterministic PDP policy decisions against untrusted text.
           </p>
         </div>
       </div>
@@ -136,8 +138,8 @@ export default function PlaygroundPage() {
 
       {/* Preset Example Picker */}
       <div className="space-y-2">
-        <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 font-mono">
-          Curated Synthetic Attack & Benign Examples
+        <label className="text-[11px] font-mono uppercase tracking-wider text-slate-400">
+          Adversarial & Benign Evaluation Presets
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
           {PRESET_EXAMPLES.map((example, idx) => {
@@ -146,15 +148,15 @@ export default function PlaygroundPage() {
               <button
                 key={example.title}
                 onClick={() => handleSelectPreset(idx)}
-                className={`p-3 rounded-lg text-left text-xs transition-all border ${
+                className={`p-3 rounded text-left text-xs transition-colors border ${
                   isSelected
-                    ? "bg-indigo-600/15 border-indigo-500/50 text-indigo-200"
-                    : "bg-slate-900/60 border-slate-800 text-slate-300 hover:bg-slate-800/60 hover:border-slate-700"
+                    ? "bg-[#141b29] border-[#a3e635]/50 text-slate-100"
+                    : "bg-[#0f141f] border-[#1c2536] text-slate-300 hover:bg-[#141b29]/60 hover:border-[#232f45]"
                 }`}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-semibold text-slate-100">{example.title}</span>
-                  <Badge variant={example.expectedOutcome === "BLOCK" ? "destructive" : "success"} className="text-[10px]">
+                  <span className="font-semibold text-slate-200">{example.title}</span>
+                  <Badge variant={example.expectedOutcome === "BLOCK" ? "destructive" : "success"}>
                     {example.expectedOutcome}
                   </Badge>
                 </div>
@@ -168,185 +170,167 @@ export default function PlaygroundPage() {
       {/* Input Form & Real-Time Results Split */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column: Input Payload Editor */}
-        <Card className="flex flex-col">
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center justify-between">
-              <span>Inbound Content Payload</span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 font-normal">Provenance:</span>
-                <select
-                  value={sourceType}
-                  onChange={(e) => setSourceType(e.target.value)}
-                  className="bg-slate-950 text-indigo-300 border border-slate-800 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                >
-                  <option value="USER_MESSAGE">USER_MESSAGE (User Query)</option>
-                  <option value="RETRIEVED_DOCUMENT">RETRIEVED_DOCUMENT (RAG Chunk)</option>
-                  <option value="EXTERNAL_TOOL">EXTERNAL_TOOL (Tool Output)</option>
-                </select>
-              </div>
-            </CardTitle>
-            <CardDescription>
-              Submit plain text or structured input to the SentinelLLM gateway for scanner evaluation.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col space-y-4">
-            <div className="flex-1">
-              <label htmlFor="payload-textarea" className="sr-only">Inbound content payload</label>
-              <textarea
-                id="payload-textarea"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Type or paste prompt text to inspect..."
-                rows={8}
-                className="w-full h-full min-h-[180px] p-3.5 rounded-md bg-slate-950 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/80 resize-y"
-              />
+        <div className="bg-[#0f141f] border border-[#1c2536] rounded p-5 flex flex-col space-y-4">
+          <div className="flex items-center justify-between border-b border-[#1c2536] pb-3">
+            <h3 className="text-xs font-semibold text-slate-200">Inbound Content Payload</h3>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-400 font-mono">Source:</span>
+              <select
+                value={sourceType}
+                onChange={(e) => setSourceType(e.target.value)}
+                className="bg-[#080a0f] text-slate-200 border border-[#1c2536] rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#a3e635]"
+              >
+                <option value="USER_MESSAGE">USER_MESSAGE (Direct Query)</option>
+                <option value="RETRIEVED_DOCUMENT">RETRIEVED_DOCUMENT (RAG Chunk)</option>
+                <option value="EXTERNAL_TOOL">EXTERNAL_TOOL (Tool Payload)</option>
+              </select>
             </div>
+          </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-              <span className="text-[11px] text-slate-400 font-mono">
-                Length: {content.length} chars | Approx ~{Math.max(1, Math.floor(content.length / 4))} tokens
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setContent("")}
-                  disabled={isInspecting || !content}
-                  className="text-xs text-slate-400"
-                >
-                  <RotateCcw className="w-3.5 h-3.5 mr-1" /> Clear
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={handleInspect}
-                  isLoading={isInspecting}
-                  className="gap-1.5"
-                >
-                  <Play className="w-3.5 h-3.5" /> Inspect In Gateway
-                </Button>
-              </div>
+          <div className="flex-1 flex flex-col">
+            <textarea
+              id="payload-textarea"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Paste prompt text or adversarial payload to inspect..."
+              rows={8}
+              className="w-full flex-1 min-h-[180px] p-3.5 rounded bg-[#080a0f] border border-[#1c2536] text-xs font-mono text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-[#a3e635] resize-y"
+            />
+          </div>
+
+          <div className="flex items-center justify-between pt-3 border-t border-[#1c2536]">
+            <span className="text-[11px] text-slate-500 font-mono">
+              {content.length} chars | ~{Math.max(1, Math.floor(content.length / 4))} tokens
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setContent("")}
+                disabled={isInspecting || !content}
+                className="text-xs text-slate-400 font-mono"
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1" /> Clear
+              </Button>
+              <Button
+                variant="accent"
+                size="sm"
+                onClick={handleInspect}
+                isLoading={isInspecting}
+                className="gap-1.5 font-mono text-xs"
+              >
+                <Play className="w-3 h-3" /> Inspect In Gateway
+              </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Right Column: Gateway Verdict & Findings */}
-        <Card className="flex flex-col">
-          <CardHeader>
-            <CardTitle className="text-sm">Inspection Verdict & Findings</CardTitle>
-            <CardDescription>
-              Analytical telemetry emitted by heuristic scanners and Policy Decision Point (PDP).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col">
-            {!result ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400">
-                <Terminal className="w-8 h-8 mb-2 text-slate-400" />
-                <p className="text-xs font-medium text-slate-300">Awaiting Inspection</p>
-                <p className="text-[11px] text-slate-400 mt-1 max-w-xs">
-                  Click &quot;Inspect In Gateway&quot; to scan the payload with the active detector registry.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Decision Header Banner */}
-                <div
-                  className={`p-4 rounded-lg border flex items-center justify-between ${
-                    result.blocked
-                      ? "bg-rose-950/20 border-rose-500/40 text-rose-200"
-                      : "bg-emerald-950/20 border-emerald-500/40 text-emerald-200"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    {result.blocked ? (
-                      <ShieldAlert className="w-6 h-6 text-rose-400 shrink-0" />
-                    ) : (
-                      <ShieldCheck className="w-6 h-6 text-emerald-400 shrink-0" />
-                    )}
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm tracking-wide">
-                          PDP DECISION: {result.decision}
-                        </span>
-                        <StatusBadge status={result.decision} />
-                      </div>
-                      <p className="text-xs text-slate-300 mt-0.5 font-mono">
-                        Reason: {result.reason_code}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right font-mono text-[11px] text-slate-400">
-                    <div>Status: {result.is_safe ? "CLEAN" : "SUSPICIOUS"}</div>
-                    <div>Gateway Quarantine: {result.blocked ? "ACTIVE" : "BYPASS"}</div>
-                  </div>
-                </div>
+        <div className="bg-[#0f141f] border border-[#1c2536] rounded p-5 flex flex-col space-y-4">
+          <div className="border-b border-[#1c2536] pb-3">
+            <h3 className="text-xs font-semibold text-slate-200">Gateway Verdict & PDP Evaluation</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Deterministic outcome emitted by the Policy Decision Point prior to model invocation.
+            </p>
+          </div>
 
-                {/* Gateway Token Quarantine Summary */}
-                <div className="p-3 rounded bg-slate-950 border border-slate-800 text-xs font-mono flex items-center justify-between">
-                  <span className="text-slate-400">Model Dispatch Disposition:</span>
+          {!result ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-500 font-mono">
+              <Terminal className="w-8 h-8 mb-2 text-slate-600" />
+              <p className="text-xs text-slate-300">Awaiting Inbound Inspection</p>
+              <p className="text-[11px] text-slate-500 mt-1 max-w-xs">
+                Click &quot;Inspect In Gateway&quot; to test the payload against compiled heuristics and policy rules.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Decision Header Banner */}
+              <div
+                className={`p-4 rounded border flex items-center justify-between ${
+                  result.blocked
+                    ? "bg-rose-950/20 border-rose-800/40 text-rose-200"
+                    : "bg-emerald-950/20 border-emerald-800/40 text-emerald-200"
+                }`}
+              >
+                <div className="flex items-center gap-3">
                   {result.blocked ? (
-                    <span className="text-emerald-400 font-semibold">
-                      Quarantined before model (0 model tokens consumed)
-                    </span>
+                    <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0" />
                   ) : (
-                    <span className="text-cyan-400 font-semibold">
-                      Permitted for dispatch to foundation model adapter
-                    </span>
+                    <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
                   )}
-                </div>
-
-                {/* Analytical Findings Section */}
-                <div>
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 font-mono mb-2 flex items-center justify-between">
-                    <span>Detector Findings ({(result.findings || []).length})</span>
-                    <span className="text-[10px] text-slate-400">Purely Analytical Observations</span>
-                  </h4>
-
-                  {(!result.findings || result.findings.length === 0) ? (
-                    <div className="p-3 text-center text-xs text-slate-400 bg-slate-950/40 rounded border border-slate-800/80">
-                      Zero suspicious patterns detected. Input conforms to benign traffic baselines.
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-semibold text-xs tracking-wider">
+                        PDP DECISION: {result.decision}
+                      </span>
+                      <StatusBadge status={result.decision} />
                     </div>
-                  ) : (
-                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                      {(result.findings || []).map((f, i) => (
-                        <div
-                          key={i}
-                          className="p-3 rounded bg-slate-950 border border-slate-800/80 text-xs space-y-1.5"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-mono font-semibold text-slate-200">
-                              {f.source}
-                            </span>
-                            <div className="flex items-center gap-1.5">
-                              <Badge variant="accent">{f.category}</Badge>
-                              <StatusBadge status={f.severity} />
-                            </div>
-                          </div>
-                          <p className="text-slate-300 text-xs leading-relaxed">{f.explanation}</p>
-                          {f.metadata && Object.keys(f.metadata).length > 0 && (
-                            <pre className="text-[10px] bg-slate-900 p-1.5 rounded text-slate-400 font-mono overflow-x-auto">
-                              {JSON.stringify(f.metadata, null, 2)}
-                            </pre>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                    <p className="text-[11px] text-slate-300 mt-0.5 font-mono">
+                      Reason: {result.reason_code}
+                    </p>
+                  </div>
                 </div>
-
-                {/* Technical Disclaimer Note */}
-                <div className="p-2.5 rounded bg-slate-950/40 border border-slate-800/60 text-[11px] text-slate-400 leading-relaxed flex items-start gap-2">
-                  <Info className="w-3.5 h-3.5 mt-0.5 text-indigo-400 shrink-0" />
-                  <span>
-                    <strong>Scientific Note:</strong> Content inspection demonstrates the gateway&apos;s heuristic detection
-                    and quarantine capability. Inspection alone does not prove that unmonitored foundation models are immune
-                    to evasion attacks.
-                  </span>
+                <div className="text-right font-mono text-[10px] text-slate-400">
+                  <div>Status: {result.is_safe ? "CLEAN" : "SUSPICIOUS"}</div>
+                  <div>Quarantine: {result.blocked ? "ACTIVE" : "BYPASS"}</div>
                 </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+
+              {/* Disposition Details */}
+              <div className="p-3 rounded bg-[#0b0e17] border border-[#1c2536] text-xs font-mono flex items-center justify-between">
+                <span className="text-slate-400">Model Token Dispatch:</span>
+                {result.blocked ? (
+                  <span className="text-emerald-400">
+                    Quarantined before model (0 model tokens consumed)
+                  </span>
+                ) : (
+                  <span className="text-[#a3e635]">
+                    Permitted for dispatch to foundation model adapter
+                  </span>
+                )}
+              </div>
+
+              {/* Analytical Findings Section */}
+              <div>
+                <h4 className="text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
+                  <span>Detector Findings ({(result.findings || []).length})</span>
+                  <span className="text-[10px] text-slate-500">Heuristic Matches</span>
+                </h4>
+
+                {(!result.findings || result.findings.length === 0) ? (
+                  <div className="p-3 text-center text-xs text-slate-400 bg-[#0b0e17] rounded border border-[#1c2536] font-mono">
+                    Zero suspicious patterns detected. Input conforms to safe traffic baseline.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {(result.findings || []).map((f, i) => (
+                      <div
+                        key={i}
+                        className="p-3 rounded bg-[#0b0e17] border border-[#1c2536] text-xs space-y-1.5 font-mono"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-200">
+                            {f.source}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="accent">{f.category}</Badge>
+                            <StatusBadge status={f.severity} />
+                          </div>
+                        </div>
+                        <p className="text-slate-300 text-xs font-sans leading-relaxed">{f.explanation}</p>
+                        {f.metadata && Object.keys(f.metadata).length > 0 && (
+                          <pre className="text-[10px] bg-[#080a0f] p-1.5 rounded text-slate-400 font-mono overflow-x-auto border border-[#1c2536]">
+                            {JSON.stringify(f.metadata, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

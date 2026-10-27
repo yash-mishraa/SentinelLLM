@@ -13,7 +13,6 @@ import {
   Copy,
   Check,
 } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
@@ -26,7 +25,7 @@ import {
   createApproval,
   getSession,
 } from "@/lib/api-client";
-import { ApprovalRequest, ApprovalStatus, SessionInfo } from "@/lib/types";
+import { ApprovalRequest, SessionInfo } from "@/lib/types";
 
 export default function ApprovalsPage() {
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
@@ -118,15 +117,17 @@ export default function ApprovalsPage() {
   const canApprove = session?.role === "supervisor" || session?.role === "admin";
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1c2536]">
         <div>
-          <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-            Human-in-the-Loop Approval Queue
-            <Badge variant="accent">TWO-MAN RULE</Badge>
-          </h2>
-          <p className="text-xs text-slate-400 mt-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-100">
+              Human-in-the-Loop Approval Queue
+            </h1>
+            <Badge variant="accent" className="text-[10px]">TWO-MAN RULE</Badge>
+          </div>
+          <p className="text-xs text-slate-400 mt-0.5">
             Sensitive actions held out-of-band by the Policy Enforcement Point (PEP) requiring cryptographic clearance.
           </p>
         </div>
@@ -136,18 +137,18 @@ export default function ApprovalsPage() {
             variant="outline"
             onClick={loadApprovals}
             isLoading={isLoading}
-            className="text-xs gap-1.5"
+            className="text-xs font-mono gap-1.5"
           >
             <RotateCw className="w-3.5 h-3.5" /> Refresh
           </Button>
           <Button
             size="sm"
-            variant="primary"
+            variant="accent"
             onClick={() => {
-              setActionInput("Audit extraction of records");
+              setActionInput("Audit extraction of customer records");
               setModalAction("create");
             }}
-            className="text-xs gap-1.5"
+            className="text-xs font-mono gap-1.5"
           >
             <Plus className="w-3.5 h-3.5" /> Request Approval
           </Button>
@@ -163,22 +164,22 @@ export default function ApprovalsPage() {
       {/* Role Notice */}
       {!canApprove && (
         <Alert variant="warning" title="Privilege Boundary Notice">
-          Your current session role is <strong>{session?.role || "analyst"}</strong>. Approving or rejecting requests requires
-          the <strong>Supervisor</strong> or <strong>Administrator</strong> role. You can switch roles in the top-right
-          selector to simulate authorized supervisor clearance.
+          Your current session role is <strong className="font-mono text-slate-100">{session?.role || "guest"}</strong>. Approving or rejecting requests requires
+          the <strong className="text-slate-100">Supervisor</strong> or <strong className="text-slate-100">Administrator</strong> role (<code className="font-mono">approvals:manage</code>). You can switch roles in the top-right
+          selector with the configured secret key.
         </Alert>
       )}
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-1.5 border-b border-slate-800 pb-2">
+      <div className="flex items-center gap-1.5 border-b border-[#1c2536] pb-2">
         {["ALL", "PENDING", "APPROVED", "CONSUMED", "REJECTED", "EXPIRED"].map((status) => (
           <button
             key={status}
             onClick={() => setFilterStatus(status)}
             className={`px-3 py-1 rounded text-xs font-mono transition-colors ${
               filterStatus === status
-                ? "bg-indigo-600/20 text-indigo-300 font-semibold border border-indigo-500/40"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                ? "bg-[#141b29] text-[#a3e635] font-semibold border border-[#232f45]"
+                : "text-slate-400 hover:text-slate-200 hover:bg-[#0f141f]"
             }`}
           >
             {status}
@@ -186,7 +187,7 @@ export default function ApprovalsPage() {
         ))}
       </div>
 
-      {/* Approval List Cards */}
+      {/* Approval List */}
       {(!approvals || approvals.length === 0) ? (
         <EmptyState
           icon={CheckSquare}
@@ -214,20 +215,20 @@ export default function ApprovalsPage() {
             }
 
             return (
-              <Card key={app.approval_id} className="p-4 hover:border-slate-700/80 transition-all">
+              <div key={app.approval_id} className="p-4 rounded bg-[#0f141f] border border-[#1c2536] hover:border-[#232f45] transition-colors">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div className="space-y-1.5 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-sm font-bold text-slate-100">{app.tool_name}</span>
+                      <span className="font-mono text-xs font-semibold text-slate-100">{app.tool_name}</span>
                       <StatusBadge status={app.status} />
-                      <span className="text-[11px] text-slate-400 font-mono">
+                      <span className="text-[11px] text-slate-500 font-mono">
                         Action: {app.action_name}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-3 text-xs text-slate-400 font-mono flex-wrap">
                       <span className="flex items-center gap-1">
-                        <User className="w-3.5 h-3.5 text-indigo-400" />
+                        <User className="w-3.5 h-3.5 text-[#a3e635]" />
                         Requester: <strong className="text-slate-300">{app.principal_id}</strong>
                       </span>
                       <span>•</span>
@@ -236,9 +237,9 @@ export default function ApprovalsPage() {
                       <span>Expires: {expiresTime}</span>
                     </div>
 
-                    <div className="flex items-center gap-2 pt-1 text-[11px] font-mono text-slate-400">
+                    <div className="flex items-center gap-2 pt-1 text-[11px] font-mono text-slate-500">
                       <span>ID:</span>
-                      <code className="text-slate-300 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
+                      <code className="text-slate-300 bg-[#080a0f] px-1.5 py-0.5 rounded border border-[#1c2536]">
                         {app.approval_id}
                       </code>
                       <button
@@ -257,8 +258,8 @@ export default function ApprovalsPage() {
                     </div>
 
                     {app.reviewed_by && (
-                      <div className="text-[11px] text-slate-400 pt-0.5">
-                        Reviewed by: <span className="font-mono text-indigo-300">{app.reviewed_by}</span> on{" "}
+                      <div className="text-[11px] text-slate-400 pt-0.5 font-mono">
+                        Reviewed by: <span className="text-slate-200">{app.reviewed_by}</span> on{" "}
                         {reviewedTime}
                         {app.rejection_reason && (
                           <span className="text-rose-400 ml-2">({app.rejection_reason})</span>
@@ -280,83 +281,77 @@ export default function ApprovalsPage() {
                         size="sm"
                         onClick={() => handleOpenReject(app)}
                         disabled={!canApprove || isSelf}
-                        className="text-xs"
+                        className="text-xs font-mono"
                       >
                         <XCircle className="w-3.5 h-3.5 mr-1 text-rose-400" /> Reject
                       </Button>
                       <Button
-                        variant="primary"
+                        variant="accent"
                         size="sm"
                         onClick={() => handleOpenApprove(app)}
                         disabled={!canApprove || isSelf}
-                        className="text-xs"
+                        className="text-xs font-mono"
                       >
                         <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Approve
                       </Button>
                     </div>
                   )}
                 </div>
-              </Card>
+              </div>
             );
           })}
         </div>
       )}
 
-      {/* Confirmation & Creation Dialog */}
+      {/* Action Dialog */}
       <Dialog
         open={modalAction !== null}
         onClose={() => setModalAction(null)}
         title={
           modalAction === "approve"
-            ? "Supervisor Approval Confirmation"
+            ? "Approve Sensitive Execution"
             : modalAction === "reject"
-            ? "Reject Action Request"
-            : "Request Sensitive Action Approval"
+            ? "Reject Sensitive Execution"
+            : "Create Approval Request"
         }
         description={
-          modalAction === "approve"
-            ? "Approving this action issues a single-use execution token cryptographically bound to the argument digest."
-            : modalAction === "reject"
-            ? "Rejecting this request terminates the pending execution and records the denial in the audit log."
-            : "Submit a high-impact action request to the supervisor approval review queue."
+          modalAction === "create"
+            ? "Register a new pending tool execution request for supervisor clearance."
+            : `Provide an audit justification for this decision on ${selectedApproval?.tool_name}.`
         }
       >
-        <div className="space-y-4 text-xs">
-          {selectedApproval && modalAction !== "create" && (
-            <div className="p-3 rounded bg-slate-950 border border-slate-800 font-mono space-y-1">
-              <div>Tool: {selectedApproval.tool_name}</div>
-              <div>Requester: {selectedApproval.principal_id}</div>
-              <div>ID: {selectedApproval.approval_id}</div>
-            </div>
-          )}
-
+        <div className="space-y-4">
           <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-              {modalAction === "approve"
-                ? "Approval Notes"
-                : modalAction === "reject"
-                ? "Rejection Reason"
-                : "Business Justification"}
+            <label className="text-[11px] font-mono text-slate-400 block mb-1.5">
+              Audit Note / Justification
             </label>
             <textarea
               value={actionInput}
               onChange={(e) => setActionInput(e.target.value)}
               rows={3}
-              className="w-full p-2.5 rounded bg-slate-950 border border-slate-800 text-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/80 resize-none"
+              className="w-full p-2.5 rounded bg-[#080a0f] border border-[#1c2536] text-xs font-mono text-slate-200 focus:outline-none focus:border-[#a3e635] resize-none"
+              placeholder="Enter explanation for audit ledger..."
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
-            <Button variant="ghost" size="sm" onClick={() => setModalAction(null)} disabled={isSubmitting}>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setModalAction(null)}
+              disabled={isSubmitting}
+              className="font-mono text-xs"
+            >
               Cancel
             </Button>
             <Button
-              variant={modalAction === "reject" ? "destructive" : "primary"}
+              variant={modalAction === "reject" ? "destructive" : "accent"}
               size="sm"
               onClick={handleConfirmAction}
               isLoading={isSubmitting}
+              className="font-mono text-xs"
             >
-              {modalAction === "approve" ? "Confirm Approval" : modalAction === "reject" ? "Confirm Rejection" : "Submit Request"}
+              Confirm
             </Button>
           </div>
         </div>

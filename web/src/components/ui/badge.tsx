@@ -16,20 +16,20 @@ interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
-  default: "bg-indigo-500/10 text-indigo-400 border-indigo-500/30",
-  success: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
-  warning: "bg-amber-500/10 text-amber-400 border-amber-500/30",
-  destructive: "bg-rose-500/10 text-rose-400 border-rose-500/30",
-  accent: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
-  secondary: "bg-slate-800 text-slate-300 border-slate-700",
-  outline: "bg-transparent text-slate-400 border-slate-800",
+  default: "bg-[#141b29] text-slate-200 border-[#232f45]",
+  success: "bg-emerald-950/40 text-emerald-400 border-emerald-800/50",
+  warning: "bg-amber-950/40 text-amber-400 border-amber-800/50",
+  destructive: "bg-rose-950/40 text-rose-400 border-rose-800/50",
+  accent: "bg-[#a3e635]/10 text-[#a3e635] border-[#a3e635]/30",
+  secondary: "bg-[#111824] text-slate-300 border-[#1c2536]",
+  outline: "bg-transparent text-slate-400 border-[#1c2536]",
 };
 
 export function Badge({ variant = "default", className, children, ...props }: BadgeProps) {
   return (
     <span
       className={clsx(
-        "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border font-mono tracking-tight",
+        "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium border leading-none transition-colors",
         variantStyles[variant],
         className
       )}
@@ -40,19 +40,21 @@ export function Badge({ variant = "default", className, children, ...props }: Ba
   );
 }
 
-export function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status, className }: { status: string; className?: string }) {
   const upper = (status || "").toUpperCase();
-  let variant: BadgeVariant = "secondary";
 
+  let variant: BadgeVariant = "secondary";
   if (["ALLOW", "EXECUTED", "APPROVED", "OK", "READY", "PASSED"].includes(upper)) {
     variant = "success";
   } else if (["BLOCK", "DENIED", "REJECTED", "CRITICAL", "HIGH", "FAILED"].includes(upper)) {
     variant = "destructive";
   } else if (["REVIEW", "PENDING", "PENDING_APPROVAL", "MEDIUM", "WARNING"].includes(upper)) {
     variant = "warning";
-  } else if (["CONSUMED", "EXPIRED", "LOW", "REDACT"].includes(upper)) {
-    variant = "secondary";
   }
 
-  return <Badge variant={variant}>{upper}</Badge>;
+  return (
+    <Badge variant={variant} className={className}>
+      {upper}
+    </Badge>
+  );
 }

@@ -9,53 +9,72 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        background: "#090d16", // Deep obsidian/slate
-        foreground: "#f1f5f9",
+        background: "#080a0f", // Near-black dark canvas
+        surface: {
+          DEFAULT: "#0f141f", // Charcoal structural panels
+          elevated: "#141b29", // Slightly raised layer
+          subtle: "#0b0e17", // Subtle recessed background
+        },
         card: {
-          DEFAULT: "#0f172a",
-          foreground: "#f8fafc",
-          border: "#1e293b",
+          DEFAULT: "#0f141f",
+          foreground: "#f3f4f6",
+          border: "#1c2536",
         },
-        popover: {
-          DEFAULT: "#0f172a",
-          foreground: "#f8fafc",
+        border: {
+          DEFAULT: "#1c2536", // Neutral hairline border
+          subtle: "#161d2b",
+          strong: "#28354d",
         },
-        primary: {
-          DEFAULT: "#6366f1", // Indigo
-          foreground: "#ffffff",
-          hover: "#4f46e5",
+        foreground: {
+          DEFAULT: "#f3f4f6", // Off-white primary text
+          muted: "#94a3b8", // Secondary slate text
+          dim: "#64748b", // Tertiary text / metadata
         },
-        secondary: {
-          DEFAULT: "#1e293b",
-          foreground: "#94a3b8",
+        // Restrained signature brand accent: Acid Lime
+        brand: {
+          DEFAULT: "#a3e635", // lime-400
+          hover: "#bef264",
+          dim: "rgba(163, 230, 53, 0.12)",
+          border: "rgba(163, 230, 53, 0.3)",
         },
-        muted: {
-          DEFAULT: "#1e293b",
-          foreground: "#94a3b8",
+        // Strict semantic security states
+        security: {
+          block: "#ef4444", // Red - Policy block / denied
+          blockBg: "rgba(239, 68, 68, 0.1)",
+          blockBorder: "rgba(239, 68, 68, 0.28)",
+
+          review: "#f59e0b", // Amber - Review / Pending
+          reviewBg: "rgba(245, 158, 11, 0.1)",
+          reviewBorder: "rgba(245, 158, 11, 0.28)",
+
+          allow: "#10b981", // Emerald - Safe / Executed / Allowed
+          allowBg: "rgba(16, 185, 129, 0.1)",
+          allowBorder: "rgba(16, 185, 129, 0.28)",
+
+          neutral: "#64748b", // Muted slate - Expired / Consumed
+          neutralBg: "rgba(100, 116, 139, 0.1)",
+          neutralBorder: "rgba(100, 116, 139, 0.28)",
         },
-        accent: {
-          DEFAULT: "#06b6d4", // Cyan
-          foreground: "#083344",
-        },
-        destructive: {
-          DEFAULT: "#ef4444", // Red
-          foreground: "#ffffff",
-        },
-        warning: {
-          DEFAULT: "#f59e0b", // Amber
-          foreground: "#ffffff",
-        },
-        success: {
-          DEFAULT: "#10b981", // Emerald
-          foreground: "#ffffff",
-        },
-        border: "#1e293b",
-        input: "#1e293b",
-        ring: "#6366f1",
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
-        mono: ["var(--font-jetbrains-mono)", "ui-monospace", "monospace"],
+        sans: [
+          "-apple-system",
+          "BlinkMacSystemFont",
+          '"Segoe UI"',
+          "Roboto",
+          '"Helvetica Neue"',
+          "Arial",
+          "sans-serif",
+        ],
+        mono: [
+          '"JetBrains Mono"',
+          '"SFMono-Regular"',
+          "Menlo",
+          "Monaco",
+          "Consolas",
+          '"Liberation Mono"',
+          "monospace",
+        ],
       },
     },
   },

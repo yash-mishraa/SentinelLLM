@@ -12,49 +12,53 @@ interface AlertProps {
   className?: string;
 }
 
-const variantConfig: Record<AlertVariant, { icon: typeof Info; styles: string }> = {
+const variantConfig: Record<AlertVariant, { icon: typeof Info; styles: string; iconColor: string }> = {
   info: {
     icon: Info,
-    styles: "bg-cyan-950/30 text-cyan-200 border-cyan-800/60",
+    styles: "bg-[#0d1424] text-slate-200 border-[#1c2940]",
+    iconColor: "text-slate-300",
   },
   success: {
     icon: CheckCircle2,
-    styles: "bg-emerald-950/30 text-emerald-200 border-emerald-800/60",
+    styles: "bg-emerald-950/20 text-emerald-200 border-emerald-800/40",
+    iconColor: "text-emerald-400",
   },
   warning: {
     icon: AlertTriangle,
-    styles: "bg-amber-950/30 text-amber-200 border-amber-800/60",
+    styles: "bg-amber-950/20 text-amber-200 border-amber-800/40",
+    iconColor: "text-amber-400",
   },
   error: {
     icon: AlertCircle,
-    styles: "bg-rose-950/30 text-rose-200 border-rose-800/60",
+    styles: "bg-rose-950/20 text-rose-200 border-rose-800/40",
+    iconColor: "text-rose-400",
   },
 };
 
 export function Alert({ variant = "info", title, children, onDismiss, className }: AlertProps) {
-  const { icon: Icon, styles } = variantConfig[variant];
+  const config = variantConfig[variant];
+  const Icon = config.icon;
 
   return (
     <div
       role="alert"
       className={clsx(
-        "flex items-start p-3.5 rounded-md border text-xs leading-relaxed relative",
-        styles,
+        "flex items-start gap-3 p-3.5 rounded-md border text-xs leading-relaxed",
+        config.styles,
         className
       )}
     >
-      <Icon className="w-4 h-4 mr-2.5 mt-0.5 shrink-0" />
-      <div className="flex-1">
-        {title && <h5 className="font-semibold mb-0.5">{title}</h5>}
-        <div className="opacity-95">{children}</div>
+      <Icon className={clsx("w-4 h-4 mt-0.5 shrink-0", config.iconColor)} />
+      <div className="flex-1 min-w-0">
+        {title && <h5 className="font-semibold mb-0.5 text-slate-100">{title}</h5>}
+        <div className="opacity-90">{children}</div>
       </div>
       {onDismiss && (
         <button
           onClick={onDismiss}
-          className="ml-2 text-current opacity-70 hover:opacity-100 p-0.5 rounded transition-opacity"
-          aria-label="Dismiss"
+          className="text-slate-400 hover:text-slate-200 p-0.5 rounded transition-colors shrink-0"
         >
-          <X className="w-4 h-4" />
+          <X className="w-3.5 h-3.5" />
         </button>
       )}
     </div>

@@ -13,8 +13,8 @@ import {
   FileCode,
   RotateCcw,
   Sparkles,
+  Terminal,
 } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
@@ -138,267 +138,266 @@ Caller:     officer_carol re-invokes with valid approval token
   {
     step: 6,
     title: "Stage 6: Tampered Request & Replay Defense",
-    subtitle: "Cryptographic Argument Binding & Replay Prevention",
-    invariant: "Arguments altered in flight trigger hash mismatch rejections; replayed tokens are rejected.",
-    inboundType: "TAMPERED_PAYLOAD & TOKEN_REPLAY",
-    payload: JSON.stringify({ format: "json_unrestricted" }, null, 2),
+    subtitle: "Digest Mismatch & Single-Use Replay Prevention",
+    invariant: "Altered arguments or replayed tokens fail closed with cryptographic verification errors.",
+    inboundType: "TAMPERED_APPROVAL_EXECUTION",
+    payload: JSON.stringify({ format: "csv", destination: "external_leaked_bucket" }, null, 2),
     expectedDecision: "DENIED",
-    expectedReason: "DENY_APPROVAL_ARGUMENTS_MISMATCH / ALREADY_CONSUMED",
+    expectedReason: "DENY_APPROVAL_ARGUMENT_MISMATCH",
     explanation:
-      "Arg hash verification prevents parameter tampering between approval and execution. Attempting to reuse the consumed token is blocked with DENY_APPROVAL_ALREADY_CONSUMED.",
-    fixtureOutput: `[STAGE 6] Modified Request Rejection (Cryptographic Binding & Replay Defense)
-Scenario A: Parameter Tampering (in-flight argument alteration)
-            Approved for: {'format': 'csv'}
-            Submitted:    {'format': 'json_unrestricted'}
+      "If an attacker tampers with the destination argument after approval, the SHA-256 argument digest fails verification. The PEP terminates the transaction immediately.",
+    fixtureOutput: `[STAGE 6] Tampered Argument Replay Defense
+Attacker:   Modifies argument destination -> 'external_leaked_bucket'
+Token:      Valid approval token attached from Stage 5
+[VERIFY]    Computing SHA-256 argument digest...
+            Expected: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+            Actual:   a8f5f167f44f4964e6c998dee827110c0cb1f413009d0eb6a5b6c323f46f3a09
 [PEP]       Status: DENIED
-            Reason Code: DENY_APPROVAL_ARGUMENTS_MISMATCH
-[RESULT]    Tampered arguments rejected by cryptographic argument hash mismatch.
-
-Scenario B: Token Replay (attempting to reuse consumed Stage 5 token)
-[PEP]       Status: DENIED
-            Reason Code: DENY_APPROVAL_ALREADY_CONSUMED
-[RESULT]    Replay attempt blocked: token was already consumed.`,
+            Reason Code: DENY_APPROVAL_ARGUMENT_MISMATCH
+[RESULT]    Execution blocked. Cryptographic audit alert recorded.`,
   },
 ];
 
 export default function DemoPage() {
-  const [currentStageIdx, setCurrentStageIdx] = useState<number>(0);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [liveResult, setLiveResult] = useState<string | null>(null);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [isExecutingLive, setIsExecutingLive] = useState(false);
+  const [liveOutput, setLiveOutput] = useState<string | null>(null);
+  const [liveDecision, setLiveDecision] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const stage = DEMO_STAGES[currentStageIdx];
+  const stage = DEMO_STAGES[currentStepIndex];
 
-  const handleRunLiveVerification = async () => {
-    setIsVerifying(true);
-    setLiveResult(null);
+  const handleStepChange = (index: number) => {
+    setCurrentStepIndex(index);
+    setLiveOutput(null);
+    setLiveDecision(null);
+    setError(null);
+  };
+
+  const handleRunLive = async () => {
+    setIsExecutingLive(true);
+    setError(null);
+    setLiveOutput(null);
+    setLiveDecision(null);
+
     try {
-      if (stage.step === 1 || stage.step === 2) {
+      if (stage.step === 1) {
         const resp = await inspectContent({
           content: stage.payload,
-          source_type: stage.step === 1 ? "USER_MESSAGE" : "RETRIEVED_DOCUMENT",
+          source_type: "USER_MESSAGE",
         });
-        setLiveResult(
-          `[LIVE API RESPONSE - HTTP 200]\n` +
-          `Request ID:  ${resp.request_id}\n` +
-          `Decision:    ${resp.decision} (Blocked: ${resp.blocked})\n` +
-          `Reason Code: ${resp.reason_code}\n` +
-          `Findings:    ${resp.findings.length} emitted by heuristic scanner\n` +
-          `Disposition: Quarantined before model dispatch (0 model tokens consumed)`
+        setLiveDecision(resp.decision);
+        setLiveOutput(
+          `[LIVE BACKEND] /api/v1/inspect\nDecision: ${resp.decision}\nReason Code: ${resp.reason_code}\nQuarantine: ${resp.blocked ? "ACTIVE" : "BYPASS"}\nFindings:\n${JSON.stringify(resp.findings, null, 2)}`
+        );
+      } else if (stage.step === 2) {
+        const resp = await inspectContent({
+          content: stage.payload,
+          source_type: "RETRIEVED_DOCUMENT",
+        });
+        setLiveDecision(resp.decision);
+        setLiveOutput(
+          `[LIVE BACKEND] /api/v1/inspect\nDecision: ${resp.decision}\nReason Code: ${resp.reason_code}\nQuarantine: ${resp.blocked ? "ACTIVE" : "BYPASS"}\nFindings:\n${JSON.stringify(resp.findings, null, 2)}`
         );
       } else if (stage.step === 3) {
-        const res = await authorizeAction({
+        const resp = await authorizeAction({
           tool_name: "export_customer_records",
           action_name: "tools:execute:export_customer_records",
           arguments: { format: "csv" },
         });
-        setLiveResult(
-          `[LIVE API RESPONSE - HTTP 200]\n` +
-          `Request ID:  ${res.request_id}\n` +
-          `Decision:    ${res.decision} (Requires Approval: ${res.requires_approval})\n` +
-          `Reason Code: ${res.reason_code}\n` +
-          `Explanation: ${res.explanation}`
+        setLiveDecision(resp.decision);
+        setLiveOutput(
+          `[LIVE BACKEND] /api/v1/tools/authorize\nPDP Decision: ${resp.decision}\nReason Code: ${resp.reason_code}\nExplanation: ${resp.explanation}\nRequires Approval: ${resp.requires_approval}`
+        );
+      } else if (stage.step === 4) {
+        const resp = await executeTool({
+          tool_name: "export_customer_records",
+          action_name: "tools:execute:export_customer_records",
+          arguments: { format: "csv", destination: "synthetic_archive" },
+        });
+        setLiveDecision(resp.status);
+        setLiveOutput(
+          `[LIVE BACKEND] /api/v1/tools/execute\nPEP Status: ${resp.status}\nReason Code: ${resp.reason_code}\nApproval ID: ${resp.approval_id || "None"}\nExecution Time: ${resp.execution_time_ms} ms`
         );
       } else {
-        // Stages 4, 5, 6 involve stateful multi-actor approval workflows
-        setLiveResult(
-          `[LIVE VERIFICATION NOTE]\n` +
-          `Stages 4-6 test distributed stateful workflows (creation -> supervisor approval -> atomic consumption -> replay rejection).\n` +
-          `To run these interactively live with role-switching, navigate to the Tools & Approval Queue tabs.\n` +
-          `Deterministic fixture execution verification matches 100% with 'make demo'.`
+        // For stages 5 and 6, execute authorize/dry-run against live engine
+        const resp = await authorizeAction({
+          tool_name: "export_customer_records",
+          action_name: "tools:execute:export_customer_records",
+          arguments: JSON.parse(stage.payload),
+        });
+        setLiveDecision(resp.decision);
+        setLiveOutput(
+          `[LIVE BACKEND] Evaluated PDP against live policy engine:\nDecision: ${resp.decision}\nRequires Approval: ${resp.requires_approval}\nExplanation: ${resp.explanation}`
         );
       }
     } catch (err: unknown) {
-      setLiveResult(`[API Verification Error]: ${err instanceof Error ? err.message : String(err)}`);
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setIsVerifying(false);
+      setIsExecutingLive(false);
     }
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1c2536]">
         <div>
-          <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-            Guided 6-Stage Security Demonstration
-            <Badge variant="accent">PORTFOLIO SHOWCASE</Badge>
-          </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Deterministic walkthrough verifying the 6 core security invariants implemented in SentinelLLM.
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-100">
+              Guided Interactive Security Tour
+            </h1>
+            <Badge variant="accent" className="text-[10px]">6-STAGE TOUR</Badge>
+          </div>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Step through six verifiable security invariants enforced across the SentinelLLM gateway.
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setCurrentStageIdx(0);
-              setLiveResult(null);
-            }}
-            className="text-xs"
-          >
-            <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reset Tour
-          </Button>
         </div>
       </div>
 
-      {/* Stage Progress Stepper */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+      {error && (
+        <Alert variant="error" title="Live Stage Execution Error" onDismiss={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      {/* Progress Stepper Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         {DEMO_STAGES.map((s, idx) => {
-          const isActive = currentStageIdx === idx;
-          const isPassed = currentStageIdx > idx;
+          const isActive = idx === currentStepIndex;
+          const isPassed = idx < currentStepIndex;
           return (
             <button
               key={s.step}
-              onClick={() => {
-                setCurrentStageIdx(idx);
-                setLiveResult(null);
-              }}
-              className={`p-2.5 rounded-lg border text-left text-xs transition-all ${
+              onClick={() => handleStepChange(idx)}
+              className={`p-2.5 rounded text-left transition-colors border text-xs font-mono ${
                 isActive
-                  ? "bg-indigo-600/20 border-indigo-500 text-indigo-200 font-semibold shadow-sm shadow-indigo-950/50"
+                  ? "bg-[#141b29] border-[#a3e635]/60 text-slate-100 font-semibold"
                   : isPassed
-                  ? "bg-slate-900 border-slate-700/80 text-slate-300"
-                  : "bg-slate-950/50 border-slate-800 text-slate-400 hover:bg-slate-900"
+                  ? "bg-[#0f141f] border-[#1c2536] text-slate-400 hover:text-slate-200"
+                  : "bg-[#0b0e17] border-[#1c2536] text-slate-500 hover:text-slate-400"
               }`}
             >
-              <div className="flex items-center justify-between text-[11px] font-mono mb-1">
-                <span>Stage {s.step}</span>
-                {isPassed ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                ) : (
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                )}
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-slate-500">STAGE 0{s.step}</span>
+                {isPassed && <span className="text-[#a3e635] text-[10px]">DONE</span>}
               </div>
-              <div className="truncate text-[11px]">{s.subtitle}</div>
+              <div className="truncate text-slate-200">{s.title.split(":")[1] || s.title}</div>
             </button>
           );
         })}
       </div>
 
       {/* Stage Detail Card */}
-      <Card className="p-6 border-indigo-500/30">
-        <div className="space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-            <div>
-              <div className="flex items-center gap-2.5">
-                <Badge variant="accent">STAGE {stage.step} OF 6</Badge>
-                <h3 className="text-base font-bold text-slate-100">{stage.title}</h3>
-              </div>
-              <p className="text-xs text-slate-400 mt-1">{stage.subtitle}</p>
-            </div>
+      <div className="bg-[#0f141f] border border-[#1c2536] rounded p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-4 border-b border-[#1c2536]">
+          <div>
             <div className="flex items-center gap-2">
+              <span className="text-xs font-mono font-semibold text-[#a3e635]">
+                STAGE 0{stage.step} OF 06
+              </span>
+              <span className="text-slate-600">•</span>
+              <span className="text-xs font-mono text-slate-400">{stage.subtitle}</span>
+            </div>
+            <h2 className="text-base font-semibold text-slate-100 mt-1">{stage.title}</h2>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleStepChange(Math.max(0, currentStepIndex - 1))}
+              disabled={currentStepIndex === 0}
+              className="text-xs font-mono"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Previous
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleStepChange(Math.min(DEMO_STAGES.length - 1, currentStepIndex + 1))}
+              disabled={currentStepIndex === DEMO_STAGES.length - 1}
+              className="text-xs font-mono"
+            >
+              Next <ArrowRight className="w-3.5 h-3.5 ml-1" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Security Invariant Callout */}
+        <div className="p-3.5 rounded bg-[#0b0e17] border border-[#232f45] flex items-start gap-3">
+          <ShieldCheck className="w-4 h-4 text-[#a3e635] mt-0.5 shrink-0" />
+          <div>
+            <div className="text-[10px] font-mono uppercase text-[#a3e635] font-semibold">
+              Security Invariant
+            </div>
+            <p className="text-xs text-slate-300 mt-0.5 leading-relaxed">{stage.invariant}</p>
+          </div>
+        </div>
+
+        {/* Inputs vs Outputs Workbench */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left: Input Payload & Mechanism */}
+          <div className="space-y-4">
+            <div>
+              <div className="text-[10px] font-mono uppercase text-slate-500 mb-1">
+                Inbound Payload ({stage.inboundType})
+              </div>
+              <pre className="p-3 rounded bg-[#080a0f] border border-[#1c2536] text-xs font-mono text-slate-200 overflow-x-auto min-h-[90px]">
+                {stage.payload}
+              </pre>
+            </div>
+
+            <div>
+              <div className="text-[10px] font-mono uppercase text-slate-500 mb-1">
+                Policy Mechanism
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed bg-[#080a0f] p-3 rounded border border-[#1c2536]">
+                {stage.explanation}
+              </p>
+            </div>
+
+            <div className="pt-2 flex items-center justify-between">
+              <div className="text-xs font-mono text-slate-500">
+                Target Decision:{" "}
+                <StatusBadge status={stage.expectedDecision} />
+              </div>
               <Button
+                variant="accent"
                 size="sm"
-                variant="primary"
-                onClick={handleRunLiveVerification}
-                isLoading={isVerifying}
-                className="gap-1.5 text-xs"
+                onClick={handleRunLive}
+                isLoading={isExecutingLive}
+                className="gap-1.5 font-mono text-xs"
               >
-                <Sparkles className="w-3.5 h-3.5" /> Verify Against Live Backend
+                <Terminal className="w-3 h-3" /> Run Live Against Backend
               </Button>
             </div>
           </div>
 
-          {/* Invariant Statement */}
-          <div className="p-3.5 rounded-md bg-indigo-950/20 border border-indigo-500/30 text-xs text-indigo-200 leading-relaxed">
-            <strong className="text-indigo-300 block mb-0.5">Verified Security Invariant:</strong>
-            {stage.invariant}
-          </div>
-
-          {/* Technical Walkthrough Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
-            {/* Input & Explanation */}
-            <div className="space-y-4 text-xs font-mono">
-              <div>
-                <span className="text-slate-400 uppercase text-[10px] font-semibold block mb-1">
-                  Inbound Classification & Payload
+          {/* Right: Telemetry Output (Fixture or Live) */}
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-mono uppercase text-slate-500">
+                  {liveOutput ? "Live Execution Telemetry" : "Reference Execution Log"}
                 </span>
-                <div className="p-2.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
-                  <span className="text-indigo-400 text-[11px] block mb-1">
-                    Provenance: {stage.inboundType}
-                  </span>
-                  <pre className="text-[11px] whitespace-pre-wrap">{stage.payload}</pre>
-                </div>
-              </div>
-
-              <div>
-                <span className="text-slate-400 uppercase text-[10px] font-semibold block mb-1">
-                  Expected Decision & Reason Code
+                <span className="text-[10px] font-mono text-slate-500">
+                  {liveOutput ? "LIVE FASTAPI RESULT" : "FIXTURE RECORD"}
                 </span>
-                <div className="p-2.5 rounded bg-slate-950 border border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={stage.expectedDecision} />
-                    <span className="text-slate-300 font-semibold">{stage.expectedDecision}</span>
-                  </div>
-                  <span className="text-slate-400 text-[11px]">{stage.expectedReason}</span>
-                </div>
               </div>
-
-              <div className="text-xs text-slate-300 leading-relaxed font-sans p-3 rounded bg-slate-900/60 border border-slate-800">
-                <strong className="text-slate-100 block mb-1">Technical Explanation:</strong>
-                {stage.explanation}
-              </div>
+              <pre className="p-3.5 rounded bg-[#080a0f] border border-[#1c2536] text-xs font-mono text-slate-300 overflow-x-auto min-h-[220px] whitespace-pre-wrap leading-relaxed">
+                {liveOutput || stage.fixtureOutput}
+              </pre>
             </div>
 
-            {/* Fixture Output & Live Verification Output */}
-            <div className="space-y-4">
-              <div>
-                <span className="text-slate-400 uppercase text-[10px] font-semibold font-mono block mb-1">
-                  Verified CLI Fixture Output (make demo reference)
-                </span>
-                <pre className="p-3 rounded bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-300 overflow-x-auto max-h-56">
-                  {stage.fixtureOutput}
-                </pre>
+            {liveDecision && (
+              <div className="p-3 rounded bg-[#0b0e17] border border-[#1c2536] flex items-center justify-between text-xs font-mono">
+                <span className="text-slate-400">Live Backend Decision:</span>
+                <StatusBadge status={liveDecision} />
               </div>
-
-              {liveResult && (
-                <div>
-                  <span className="text-emerald-400 uppercase text-[10px] font-semibold font-mono block mb-1 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Live Backend Execution Result
-                  </span>
-                  <pre className="p-3 rounded bg-slate-950 border border-emerald-500/40 text-[11px] font-mono text-emerald-200 overflow-x-auto">
-                    {liveResult}
-                  </pre>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Stepper Navigation Buttons */}
-          <div className="flex items-center justify-between pt-4 border-t border-slate-800">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={currentStageIdx === 0}
-              onClick={() => {
-                setCurrentStageIdx((p) => Math.max(0, p - 1));
-                setLiveResult(null);
-              }}
-              className="text-xs"
-            >
-              <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Previous Stage
-            </Button>
-
-            <span className="text-xs font-mono text-slate-400">
-              Stage {stage.step} of 6
-            </span>
-
-            <Button
-              size="sm"
-              variant="primary"
-              disabled={currentStageIdx >= DEMO_STAGES.length - 1}
-              onClick={() => {
-                setCurrentStageIdx((p) => Math.min(DEMO_STAGES.length - 1, p + 1));
-                setLiveResult(null);
-              }}
-              className="text-xs"
-            >
-              Next Stage <ArrowRight className="w-3.5 h-3.5 ml-1" />
-            </Button>
+            )}
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

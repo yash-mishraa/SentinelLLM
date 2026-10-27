@@ -1,12 +1,12 @@
 import React from "react";
 import type { Metadata } from "next";
 import "./globals.css";
-import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 
 export const metadata: Metadata = {
-  title: "SentinelLLM — AI Security Operations & PEP Console",
-  description: "Defense-in-depth runtime security framework for LLMs and autonomous AI agents.",
+  title: "SentinelLLM — Security boundaries for LLM-powered systems",
+  description:
+    "An open-source security gateway that inspects untrusted inputs, enforces tool-use policies, gates sensitive actions behind human approval, and records security decisions for inspection.",
 };
 
 export default function RootLayout({
@@ -15,13 +15,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="bg-background text-foreground flex h-screen overflow-hidden">
-        <Sidebar />
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <Header />
-          <main className="flex-1 overflow-y-auto p-6">{children}</main>
-        </div>
+    <html lang="en" className="dark scroll-smooth">
+      <body className="bg-background text-foreground min-h-screen flex flex-col font-sans antialiased selection:bg-[#a3e635]/20 selection:text-[#a3e635]">
+        <Header />
+        <main className="flex-1 flex flex-col w-full">{children}</main>
       </body>
     </html>
   );
