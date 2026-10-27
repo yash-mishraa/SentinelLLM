@@ -9,51 +9,30 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        background: "#080a0f", // Near-black dark canvas
+        background: "#08090a", // Near-black editorial canvas
         surface: {
-          DEFAULT: "#0f141f", // Charcoal structural panels
-          elevated: "#141b29", // Slightly raised layer
-          subtle: "#0b0e17", // Subtle recessed background
-        },
-        card: {
-          DEFAULT: "#0f141f",
-          foreground: "#f3f4f6",
-          border: "#1c2536",
+          DEFAULT: "#0f1012", // Subtle charcoal for necessary surfaces
+          raised: "#141518",
+          subtle: "#0b0c0d",
         },
         border: {
-          DEFAULT: "#1c2536", // Neutral hairline border
-          subtle: "#161d2b",
-          strong: "#28354d",
+          DEFAULT: "#1e2023", // Exceptionally subtle neutral border
+          subtle: "#161719",
+          muted: "#272a2e",
         },
         foreground: {
-          DEFAULT: "#f3f4f6", // Off-white primary text
-          muted: "#94a3b8", // Secondary slate text
-          dim: "#64748b", // Tertiary text / metadata
+          DEFAULT: "#f2f2f0", // Warm white primary text
+          muted: "#9d9ea1", // Secondary neutral gray
+          dim: "#6b6c70", // Tertiary / metadata
         },
-        // Restrained signature brand accent: Acid Lime
-        brand: {
-          DEFAULT: "#a3e635", // lime-400
-          hover: "#bef264",
-          dim: "rgba(163, 230, 53, 0.12)",
-          border: "rgba(163, 230, 53, 0.3)",
-        },
-        // Strict semantic security states
+        // Semantic security states strictly for actual verdicts
         security: {
-          block: "#ef4444", // Red - Policy block / denied
-          blockBg: "rgba(239, 68, 68, 0.1)",
-          blockBorder: "rgba(239, 68, 68, 0.28)",
-
-          review: "#f59e0b", // Amber - Review / Pending
-          reviewBg: "rgba(245, 158, 11, 0.1)",
-          reviewBorder: "rgba(245, 158, 11, 0.28)",
-
-          allow: "#10b981", // Emerald - Safe / Executed / Allowed
-          allowBg: "rgba(16, 185, 129, 0.1)",
-          allowBorder: "rgba(16, 185, 129, 0.28)",
-
-          neutral: "#64748b", // Muted slate - Expired / Consumed
-          neutralBg: "rgba(100, 116, 139, 0.1)",
-          neutralBorder: "rgba(100, 116, 139, 0.28)",
+          block: "#ef4444",
+          blockBg: "rgba(239, 68, 68, 0.08)",
+          review: "#f59e0b",
+          reviewBg: "rgba(245, 158, 11, 0.08)",
+          allow: "#10b981",
+          allowBg: "rgba(16, 185, 129, 0.08)",
         },
       },
       fontFamily: {
@@ -72,7 +51,6 @@ module.exports = {
           "Menlo",
           "Monaco",
           "Consolas",
-          '"Liberation Mono"',
           "monospace",
         ],
       },

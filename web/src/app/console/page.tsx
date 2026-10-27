@@ -2,52 +2,27 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  ShieldAlert,
-  ShieldCheck,
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  Activity,
-  Terminal,
-  ArrowRight,
-  Database,
-  Cpu,
-  Layers,
-  Wrench,
-  CheckSquare,
-  FileText,
-  BarChart3,
-  PlayCircle,
-} from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { StatusBadge, Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import {
   getReadiness,
   listApprovals,
   queryAudit,
-  getBenchmarkSummary,
   getBenchmarkHistory,
-  getHybridBenchmarkSummary,
 } from "@/lib/api-client";
 import {
   ReadyStatus,
   ApprovalRequest,
   AuditEvent,
-  BenchmarkSummary,
   BenchmarkRun,
-  HybridBenchmarkSummary,
 } from "@/lib/types";
 
 export default function ConsoleOverviewPage() {
   const [readiness, setReadiness] = useState<ReadyStatus | null>(null);
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>([]);
   const [recentAudits, setRecentAudits] = useState<AuditEvent[]>([]);
-  const [benchmarkSummary, setBenchmarkSummary] = useState<BenchmarkSummary | null>(null);
   const [latestBenchmark, setLatestBenchmark] = useState<BenchmarkRun | null>(null);
-  const [hybridSummary, setHybridSummary] = useState<HybridBenchmarkSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,13 +31,11 @@ export default function ConsoleOverviewPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const [ready, approvals, audits, benchSum, benchHistory, hybridSum] = await Promise.allSettled([
+        const [ready, approvals, audits, benchHistory] = await Promise.allSettled([
           getReadiness(),
           listApprovals("PENDING"),
-          queryAudit({ limit: 6 }),
-          getBenchmarkSummary(),
+          queryAudit({ limit: 8 }),
           getBenchmarkHistory(1),
-          getHybridBenchmarkSummary(),
         ]);
 
         if (ready.status === "fulfilled" && ready.value) setReadiness(ready.value);
@@ -72,15 +45,13 @@ export default function ConsoleOverviewPage() {
         if (audits.status === "fulfilled" && audits.value && Array.isArray(audits.value.events)) {
           setRecentAudits(audits.value.events);
         }
-        if (benchSum.status === "fulfilled" && benchSum.value) setBenchmarkSummary(benchSum.value);
         if (benchHistory.status === "fulfilled" && Array.isArray(benchHistory.value) && benchHistory.value.length > 0) {
           setLatestBenchmark(benchHistory.value[0]);
         }
-        if (hybridSum.status === "fulfilled" && hybridSum.value) setHybridSummary(hybridSum.value);
 
         if (ready.status === "rejected") {
           setError(
-            "Backend connection error: Could not reach the SentinelLLM REST API. Check that the backend URL is configured and healthy."
+            "Backend API unreachable. Ensure FastAPI backend is online and accessible."
           );
         }
       } catch (err) {
@@ -93,33 +64,25 @@ export default function ConsoleOverviewPage() {
   }, []);
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-      {/* Top Console Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1c2536]">
+    <div className="w-full max-w-5xl mx-auto px-6 py-8 space-y-10">
+      {/* Console Section Header */}
+      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 pb-4 border-b border-[#161719]">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-lg font-semibold tracking-tight text-slate-100">
-              Security Operations Console
-            </h1>
-            <Badge variant="accent" className="text-[10px]">OPERATIONAL</Badge>
-          </div>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Real-time status of runtime PEP gates, deterministic PDP engine, and pending human authorizations.
+          <h1 className="text-lg font-medium text-[#f2f2f0] tracking-tight">Console Overview</h1>
+          <p className="text-xs text-[#9d9ea1] mt-0.5">
+            Operational status of PEP boundaries, pending authorizations, and audit telemetry.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Link href="/playground">
-            <Button size="sm" variant="accent" className="gap-1.5 text-xs font-mono">
-              <Terminal className="w-3.5 h-3.5" />
-              <span>Test Payload</span>
-            </Button>
+        <div className="flex items-center gap-4 text-xs text-[#9d9ea1]">
+          <Link href="/demo" className="text-[#f2f2f0] hover:underline font-medium">
+            Guided Tour &rarr;
           </Link>
-          <Link href="/demo">
-            <Button size="sm" variant="secondary" className="gap-1.5 text-xs font-mono">
-              <PlayCircle className="w-3.5 h-3.5" />
-              <span>Guided Tour</span>
-            </Button>
+          <Link href="/playground" className="hover:text-white transition-colors">
+            Playground &rarr;
+          </Link>
+          <Link href="/approvals" className="hover:text-white transition-colors">
+            Approvals ({pendingApprovals.length}) &rarr;
           </Link>
         </div>
       </div>
@@ -130,238 +93,131 @@ export default function ConsoleOverviewPage() {
         </Alert>
       )}
 
-      {/* Metrics Ribbon */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-[#0f141f] border border-[#1c2536] rounded p-4">
-          <div className="text-[10px] font-mono text-slate-500 uppercase">Gateway PDP Engine</div>
-          <div className="flex items-center gap-2 mt-1">
+      {/* Guided Tour Banner */}
+      <div className="p-4 rounded bg-[#0b0c0d] border border-[#1e2023] flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
+        <div>
+          <div className="text-sm font-medium text-[#f2f2f0]">Interactive Security Tour</div>
+          <div className="text-xs text-[#9d9ea1] mt-0.5">
+            Step through 6 verified security invariants with live backend execution or reference fixtures.
+          </div>
+        </div>
+        <Link href="/demo" className="shrink-0">
+          <Button size="sm" variant="primary">
+            Launch Tour &rarr;
+          </Button>
+        </Link>
+      </div>
+
+      {/* Inline Operational State Row (Clean, flat metrics) */}
+      <section className="grid grid-cols-2 sm:grid-cols-4 gap-6 py-2">
+        <div className="space-y-1">
+          <div className="text-xs text-zinc-500 font-medium">Gateway PDP</div>
+          <div className="text-sm font-medium text-[#f2f2f0] flex items-center gap-2">
             <span
-              className={`w-2 h-2 rounded-full ${
+              className={`w-1.5 h-1.5 rounded-full ${
                 readiness?.status === "ready" ? "bg-emerald-400" : "bg-amber-400"
               }`}
             />
-            <span className="text-sm font-mono font-semibold text-slate-100">
-              {readiness?.status === "ready" ? "ACTIVE / ENFORCING" : "INITIALIZING"}
-            </span>
+            <span>{readiness?.status === "ready" ? "Active" : "Connecting"}</span>
           </div>
-          <div className="text-[11px] text-slate-500 font-mono mt-2">
-            Zero-Trust Ingress & Egress
-          </div>
+          <div className="text-[11px] text-[#9d9ea1]">Zero-trust policy engine</div>
         </div>
 
-        <div className="bg-[#0f141f] border border-[#1c2536] rounded p-4">
-          <div className="text-[10px] font-mono text-slate-500 uppercase">Pending Approvals</div>
-          <div className="text-xl font-mono font-semibold text-slate-100 mt-1">
-            {pendingApprovals.length}
+        <div className="space-y-1">
+          <div className="text-xs text-zinc-500 font-medium">Pending Approvals</div>
+          <div className="text-sm font-medium text-[#f2f2f0]">
+            {pendingApprovals.length} {pendingApprovals.length === 1 ? "request" : "requests"}
           </div>
-          <div className="text-[11px] text-slate-500 font-mono mt-2 flex items-center justify-between">
-            <span>Human-in-the-loop</span>
-            <Link href="/approvals" className="text-[#a3e635] hover:underline">
-              View queue →
-            </Link>
-          </div>
+          <div className="text-[11px] text-[#9d9ea1]">Awaiting supervisor review</div>
         </div>
 
-        <div className="bg-[#0f141f] border border-[#1c2536] rounded p-4">
-          <div className="text-[10px] font-mono text-slate-500 uppercase">Benchmark Baseline</div>
-          <div className="text-xl font-mono font-semibold text-[#a3e635] mt-1">
+        <div className="space-y-1">
+          <div className="text-xs text-zinc-500 font-medium">Telemetry Store</div>
+          <div className="text-sm font-medium text-[#f2f2f0]">
+            {readiness?.database_connected ? "PostgreSQL Connected" : "Connecting"}
+          </div>
+          <div className="text-[11px] text-[#9d9ea1]">Append-only audit store</div>
+        </div>
+
+        <div className="space-y-1">
+          <div className="text-xs text-zinc-500 font-medium">Baseline Accuracy</div>
+          <div className="text-sm font-medium text-[#f2f2f0]">
             {typeof latestBenchmark?.accuracy === "number"
               ? `${(latestBenchmark.accuracy * 100).toFixed(1)}%`
-              : "95.6%"}
+              : "93.8%"}
           </div>
-          <div className="text-[11px] text-slate-500 font-mono mt-2 flex items-center justify-between">
-            <span>23 Starter Cases</span>
-            <Link href="/benchmark" className="text-[#a3e635] hover:underline">
-              Details →
-            </Link>
-          </div>
+          <div className="text-[11px] text-[#9d9ea1]">23 synthetic benchmark cases</div>
+        </div>
+      </section>
+
+      {/* Recent Audit Telemetry Table */}
+      <section className="space-y-3">
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-sm font-medium text-[#f2f2f0]">Recent Security Decisions</h2>
+          <Link href="/audit" className="text-xs text-zinc-500 hover:text-white transition-colors">
+            All records &rarr;
+          </Link>
         </div>
 
-        <div className="bg-[#0f141f] border border-[#1c2536] rounded p-4">
-          <div className="text-[10px] font-mono text-slate-500 uppercase">Telemetry Store</div>
-          <div className="text-xl font-mono font-semibold text-slate-100 mt-1">
-            {readiness?.database_connected ? "CONNECTED" : "POSTGRES"}
+        {recentAudits.length === 0 ? (
+          <div className="p-8 text-center text-xs text-zinc-500 border border-[#161719] rounded">
+            No audit records currently persisted. Inspect a payload or run a tool to generate telemetry.
           </div>
-          <div className="text-[11px] text-slate-500 font-mono mt-2">
-            Append-only Audit DB
+        ) : (
+          <div className="overflow-x-auto border border-[#161719] rounded">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#0b0c0d] text-zinc-500 border-b border-[#161719] text-[11px]">
+                <tr>
+                  <th className="py-2.5 px-4 font-normal">Timestamp</th>
+                  <th className="py-2.5 px-4 font-normal">Event Type</th>
+                  <th className="py-2.5 px-4 font-normal">Request ID</th>
+                  <th className="py-2.5 px-4 font-normal">Component</th>
+                  <th className="py-2.5 px-4 font-normal">Disposition</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#161719] text-[#9d9ea1]">
+                {recentAudits.map((event, idx) => (
+                  <tr key={event.event_id || idx} className="hover:bg-[#0d0e10] transition-colors">
+                    <td className="py-2.5 px-4 text-zinc-500 whitespace-nowrap">
+                      {event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : "—"}
+                    </td>
+                    <td className="py-2.5 px-4 text-[#f2f2f0]">{event.event_type}</td>
+                    <td className="py-2.5 px-4 font-mono text-[11px] text-zinc-400">
+                      {event.request_id || "—"}
+                    </td>
+                    <td className="py-2.5 px-4">{event.component}</td>
+                    <td className="py-2.5 px-4">
+                      <StatusBadge status={event.decision || "LOGGED"} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        )}
+      </section>
+
+      {/* Direct Workbench Links */}
+      <section className="pt-4 border-t border-[#161719] grid grid-cols-1 sm:grid-cols-3 gap-6 text-xs text-[#9d9ea1]">
+        <div className="space-y-1">
+          <Link href="/playground" className="text-[#f2f2f0] font-medium hover:underline block">
+            Adversarial Playground &rarr;
+          </Link>
+          <p className="text-zinc-500">Test prompt injection heuristics and quarantined token dispatch.</p>
         </div>
-      </div>
-
-      {/* Main Two-Column Operational Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Recent Audit Telemetry */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-[#0f141f] border border-[#1c2536] rounded overflow-hidden">
-            <div className="px-4 py-3 border-b border-[#1c2536] bg-[#0b0e17] flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-slate-400" />
-                <h3 className="text-xs font-semibold text-slate-200">Recent Security Audit Stream</h3>
-              </div>
-              <Link href="/audit" className="text-[11px] font-mono text-[#a3e635] hover:underline">
-                Open Audit Explorer →
-              </Link>
-            </div>
-
-            {recentAudits.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-500 font-mono">
-                No recent audit events in telemetry database.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs font-mono">
-                  <thead className="bg-[#080a0f] text-slate-500 border-b border-[#1c2536] text-[10px] uppercase">
-                    <tr>
-                      <th className="px-4 py-2">Event Type</th>
-                      <th className="px-4 py-2">Request ID</th>
-                      <th className="px-4 py-2">Principal</th>
-                      <th className="px-4 py-2">Outcome</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#1c2536] text-slate-300">
-                    {recentAudits.map((event, idx) => (
-                      <tr key={event.event_id || idx} className="hover:bg-[#141b29] transition-colors">
-                        <td className="px-4 py-2.5 font-medium text-slate-200">
-                          {event.event_type}
-                        </td>
-                        <td className="px-4 py-2.5 text-slate-400 text-[11px]">
-                          {event.request_id || "—"}
-                        </td>
-                        <td className="px-4 py-2.5 text-slate-400 text-[11px]">
-                          {String(event.metadata?.principal_id || event.component || "system")}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <StatusBadge status={event.decision || "LOGGED"} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* Active Policies & Boundaries Table */}
-          <div className="bg-[#0f141f] border border-[#1c2536] rounded p-5">
-            <h3 className="text-xs font-semibold text-slate-200 mb-3 flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-[#a3e635]" />
-              Active PEP/PDP Security Boundaries
-            </h3>
-            <div className="space-y-2.5 text-xs">
-              <div className="p-3 rounded bg-[#0b0e17] border border-[#1c2536] flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-slate-200">Prompt Injection Guard</div>
-                  <div className="text-[11px] text-slate-500">Dual-tier regex fast-path and transformer classifier</div>
-                </div>
-                <Badge variant="success">ENFORCING</Badge>
-              </div>
-
-              <div className="p-3 rounded bg-[#0b0e17] border border-[#1c2536] flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-slate-200">Sensitive Tool Execution Hold</div>
-                  <div className="text-[11px] text-slate-500">Requires supervisor cryptographic approval token</div>
-                </div>
-                <Badge variant="warning">GATE ACTIVE</Badge>
-              </div>
-
-              <div className="p-3 rounded bg-[#0b0e17] border border-[#1c2536] flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-slate-200">Role-Based Access Control (RBAC)</div>
-                  <div className="text-[11px] text-slate-500">Admin, Supervisor, Analyst, and Guest boundary separation</div>
-                </div>
-                <Badge variant="success">ENFORCING</Badge>
-              </div>
-            </div>
-          </div>
+        <div className="space-y-1">
+          <Link href="/tools" className="text-[#f2f2f0] font-medium hover:underline block">
+            Tool Policy Gating &rarr;
+          </Link>
+          <p className="text-zinc-500">Authorize arguments and execute simulated tools via PEP.</p>
         </div>
-
-        {/* Right Column: Console Quick Navigation */}
-        <div className="space-y-4">
-          <div className="bg-[#0f141f] border border-[#1c2536] rounded p-5 space-y-3">
-            <h3 className="text-xs font-semibold text-slate-200 tracking-tight">Console Navigation</h3>
-
-            <div className="space-y-1.5">
-              <Link
-                href="/playground"
-                className="flex items-center justify-between p-2.5 rounded bg-[#0b0e17] border border-[#1c2536] hover:border-[#28354d] transition-colors group"
-              >
-                <div>
-                  <div className="text-xs font-semibold text-slate-200 group-hover:text-[#a3e635] transition-colors">
-                    Attack Playground
-                  </div>
-                  <div className="text-[11px] text-slate-500">Interactive prompt injection scanner</div>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-200 transition-colors" />
-              </Link>
-
-              <Link
-                href="/tools"
-                className="flex items-center justify-between p-2.5 rounded bg-[#0b0e17] border border-[#1c2536] hover:border-[#28354d] transition-colors group"
-              >
-                <div>
-                  <div className="text-xs font-semibold text-slate-200 group-hover:text-[#a3e635] transition-colors">
-                    Policies & Tools
-                  </div>
-                  <div className="text-[11px] text-slate-500">PEP tool execution & boundary testing</div>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-200 transition-colors" />
-              </Link>
-
-              <Link
-                href="/approvals"
-                className="flex items-center justify-between p-2.5 rounded bg-[#0b0e17] border border-[#1c2536] hover:border-[#28354d] transition-colors group"
-              >
-                <div>
-                  <div className="text-xs font-semibold text-slate-200 group-hover:text-[#a3e635] transition-colors">
-                    Approval Queue
-                  </div>
-                  <div className="text-[11px] text-slate-500">Human-in-the-loop review ledger</div>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-200 transition-colors" />
-              </Link>
-
-              <Link
-                href="/audit"
-                className="flex items-center justify-between p-2.5 rounded bg-[#0b0e17] border border-[#1c2536] hover:border-[#28354d] transition-colors group"
-              >
-                <div>
-                  <div className="text-xs font-semibold text-slate-200 group-hover:text-[#a3e635] transition-colors">
-                    Audit Explorer
-                  </div>
-                  <div className="text-[11px] text-slate-500">Structured telemetry logs & query</div>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-200 transition-colors" />
-              </Link>
-
-              <Link
-                href="/benchmark"
-                className="flex items-center justify-between p-2.5 rounded bg-[#0b0e17] border border-[#1c2536] hover:border-[#28354d] transition-colors group"
-              >
-                <div>
-                  <div className="text-xs font-semibold text-slate-200 group-hover:text-[#a3e635] transition-colors">
-                    Benchmark Explorer
-                  </div>
-                  <div className="text-[11px] text-slate-500">Adversarial evaluation dataset analysis</div>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-200 transition-colors" />
-              </Link>
-
-              <Link
-                href="/demo"
-                className="flex items-center justify-between p-2.5 rounded bg-[#0b0e17] border border-[#1c2536] hover:border-[#28354d] transition-colors group"
-              >
-                <div>
-                  <div className="text-xs font-semibold text-slate-200 group-hover:text-[#a3e635] transition-colors">
-                    Guided Demo Tour
-                  </div>
-                  <div className="text-[11px] text-slate-500">6-stage end-to-end verified walkthrough</div>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-200 transition-colors" />
-              </Link>
-            </div>
-          </div>
+        <div className="space-y-1">
+          <Link href="/demo" className="text-[#f2f2f0] font-medium hover:underline block">
+            Guided Tour &rarr;
+          </Link>
+          <p className="text-zinc-500">6-stage interactive walkthrough of security invariants.</p>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

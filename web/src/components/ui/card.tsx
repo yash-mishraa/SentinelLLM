@@ -5,7 +5,7 @@ export function Card({ className, children, ...props }: React.HTMLAttributes<HTM
   return (
     <div
       className={clsx(
-        "bg-[#0f141f] border border-[#1c2536] rounded-md p-5",
+        "bg-[#0f1012] border border-[#1e2023] rounded p-5",
         className
       )}
       {...props}
@@ -17,7 +17,7 @@ export function Card({ className, children, ...props }: React.HTMLAttributes<HTM
 
 export function CardHeader({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={clsx("flex flex-col space-y-1.5 pb-4 border-b border-[#1c2536] mb-4", className)} {...props}>
+    <div className={clsx("flex flex-col space-y-1 pb-3 mb-3 border-b border-[#1e2023]", className)} {...props}>
       {children}
     </div>
   );
@@ -25,7 +25,7 @@ export function CardHeader({ className, children, ...props }: React.HTMLAttribut
 
 export function CardTitle({ className, children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
-    <h3 className={clsx("text-sm font-semibold text-slate-100 flex items-center gap-2 tracking-tight", className)} {...props}>
+    <h3 className={clsx("text-sm font-medium text-[#f2f2f0] tracking-tight", className)} {...props}>
       {children}
     </h3>
   );
@@ -33,7 +33,7 @@ export function CardTitle({ className, children, ...props }: React.HTMLAttribute
 
 export function CardDescription({ className, children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={clsx("text-xs text-slate-400 leading-relaxed", className)} {...props}>
+    <p className={clsx("text-xs text-[#9d9ea1] leading-relaxed", className)} {...props}>
       {children}
     </p>
   );
@@ -41,7 +41,7 @@ export function CardDescription({ className, children, ...props }: React.HTMLAtt
 
 export function CardContent({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={clsx("space-y-4", className)} {...props}>
+    <div className={clsx("space-y-3", className)} {...props}>
       {children}
     </div>
   );

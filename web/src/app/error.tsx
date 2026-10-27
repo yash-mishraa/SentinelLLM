@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { AlertCircle, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function ErrorBoundary({
@@ -17,17 +16,13 @@ export default function ErrorBoundary({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center space-y-4">
-      <div className="w-10 h-10 rounded border border-rose-800/40 bg-rose-950/20 flex items-center justify-center text-rose-400">
-        <AlertCircle className="w-5 h-5" />
-      </div>
       <div className="space-y-1">
-        <h2 className="text-base font-semibold text-slate-100 font-mono">Operation Error</h2>
-        <p className="text-xs text-slate-400 max-w-md font-mono">
-          {error.message || "An unexpected client-side rendering error occurred."}
+        <h2 className="text-base font-medium text-[#f2f2f0]">Application Notice</h2>
+        <p className="text-xs text-[#9d9ea1] max-w-md">
+          {error.message || "An unexpected client-side error occurred."}
         </p>
       </div>
-      <Button size="sm" variant="outline" onClick={() => reset()} className="gap-1.5 text-xs font-mono">
-        <RotateCw className="w-3.5 h-3.5" />
+      <Button size="sm" variant="outline" onClick={() => reset()}>
         Retry View
       </Button>
     </div>

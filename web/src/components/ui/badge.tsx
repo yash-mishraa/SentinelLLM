@@ -16,20 +16,20 @@ interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
-  default: "bg-[#141b29] text-slate-200 border-[#232f45]",
-  success: "bg-emerald-950/40 text-emerald-400 border-emerald-800/50",
-  warning: "bg-amber-950/40 text-amber-400 border-amber-800/50",
-  destructive: "bg-rose-950/40 text-rose-400 border-rose-800/50",
-  accent: "bg-[#a3e635]/10 text-[#a3e635] border-[#a3e635]/30",
-  secondary: "bg-[#111824] text-slate-300 border-[#1c2536]",
-  outline: "bg-transparent text-slate-400 border-[#1c2536]",
+  default: "bg-[#141518] text-[#9d9ea1] border-[#1e2023]",
+  success: "bg-emerald-950/30 text-emerald-400 border-emerald-800/30",
+  warning: "bg-amber-950/30 text-amber-400 border-amber-800/30",
+  destructive: "bg-rose-950/30 text-rose-400 border-rose-800/30",
+  accent: "bg-[#161719] text-[#f2f2f0] border-[#272a2e]",
+  secondary: "bg-[#101113] text-[#9d9ea1] border-[#1e2023]",
+  outline: "bg-transparent text-[#9d9ea1] border-[#1e2023]",
 };
 
 export function Badge({ variant = "default", className, children, ...props }: BadgeProps) {
   return (
     <span
       className={clsx(
-        "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium border leading-none transition-colors",
+        "inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-sans font-medium border leading-none tracking-normal transition-colors",
         variantStyles[variant],
         className
       )}

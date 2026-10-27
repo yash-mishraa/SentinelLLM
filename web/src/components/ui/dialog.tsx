@@ -15,21 +15,21 @@ export function Dialog({ open, onClose, title, description, children, className 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 animate-in fade-in duration-100">
       <div
         className={clsx(
-          "w-full max-w-lg bg-[#0f141f] border border-[#1c2536] rounded-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]",
+          "w-full max-w-lg bg-[#0e0f11] border border-[#1e2023] rounded shadow-2xl overflow-hidden flex flex-col max-h-[90vh]",
           className
         )}
       >
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#1c2536] bg-[#0b0e17]">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#1e2023] bg-[#0a0b0d]">
           <div>
-            <h3 className="text-sm font-semibold text-slate-100 tracking-tight">{title}</h3>
-            {description && <p className="text-xs text-slate-400 mt-0.5">{description}</p>}
+            <h3 className="text-sm font-medium text-[#f2f2f0]">{title}</h3>
+            {description && <p className="text-xs text-[#9d9ea1] mt-0.5">{description}</p>}
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-200 p-1 rounded hover:bg-[#141b29] transition-colors"
+            className="text-zinc-500 hover:text-zinc-300 p-1 rounded transition-colors"
           >
             <X className="w-4 h-4" />
           </button>

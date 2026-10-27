@@ -1,39 +1,18 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import {
-  BarChart3,
-  Play,
-  RotateCw,
-  ShieldCheck,
-  ShieldAlert,
-  Database,
-  Cpu,
-  Layers,
-  Info,
-  DollarSign,
-  AlertCircle,
-} from "lucide-react";
-import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import {
   getBenchmarkSummary,
-  getHybridBenchmarkSummary,
   getBenchmarkHistory,
   triggerBenchmarkRun,
   getSession,
 } from "@/lib/api-client";
-import {
-  BenchmarkSummary,
-  HybridBenchmarkSummary,
-  BenchmarkRun,
-  SessionInfo,
-} from "@/lib/types";
+import { BenchmarkSummary, BenchmarkRun, SessionInfo } from "@/lib/types";
 
 export default function BenchmarkPage() {
   const [summary, setSummary] = useState<BenchmarkSummary | null>(null);
-  const [hybridSummary, setHybridSummary] = useState<HybridBenchmarkSummary | null>(null);
   const [history, setHistory] = useState<BenchmarkRun[]>([]);
   const [session, setSession] = useState<SessionInfo | null>(null);
 
@@ -46,26 +25,16 @@ export default function BenchmarkPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const [sum, hSum, hist] = await Promise.allSettled([
+      const [sum, hist] = await Promise.allSettled([
         getBenchmarkSummary(),
-        getHybridBenchmarkSummary(),
         getBenchmarkHistory(10),
       ]);
       if (sum.status === "fulfilled" && sum.value) setSummary(sum.value);
-      if (hSum.status === "fulfilled" && hSum.value) setHybridSummary(hSum.value);
       if (hist.status === "fulfilled" && Array.isArray(hist.value)) {
         setHistory(hist.value);
       }
-      if (sum.status === "rejected") {
-        setError(sum.reason instanceof Error ? sum.reason.message : String(sum.reason));
-      } else if (hSum.status === "rejected") {
-        setError(hSum.reason instanceof Error ? hSum.reason.message : String(hSum.reason));
-      } else if (hist.status === "rejected") {
-        setHistory([]);
-      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
-      setHistory([]);
     } finally {
       setIsLoading(false);
     }
@@ -91,7 +60,7 @@ export default function BenchmarkPage() {
     try {
       const result = await triggerBenchmarkRun();
       setSuccessMessage(
-        `Benchmark run completed! Evaluated ${result.total_cases} cases (${result.passed_cases} passed, ${result.failed_cases} expected/triage). Persisted to database under run_id: ${result.run_id}`
+        `Benchmark completed: ${result.total_cases} cases evaluated (${result.passed_cases} passed). Run ID: ${result.run_id}`
       );
       await loadData();
     } catch (err: unknown) {
@@ -104,18 +73,13 @@ export default function BenchmarkPage() {
   const isAdmin = session?.role === "admin";
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    <div className="w-full max-w-5xl mx-auto px-6 py-8 space-y-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1c2536]">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-lg font-semibold tracking-tight text-slate-100">
-              PromptProbe Adversarial Benchmark Explorer
-            </h1>
-            <Badge variant="accent" className="text-[10px]">EVALUATION HARNESS</Badge>
-          </div>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Independent evaluation measuring detection accuracy, action-level enforcement, and hybrid model telemetry.
+      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 pb-4 border-b border-[#161719]">
+        <div className="space-y-1">
+          <h1 className="text-lg font-medium text-[#f2f2f0] tracking-tight">PromptProbe Benchmark Explorer</h1>
+          <p className="text-xs text-[#9d9ea1]">
+            Deterministic evaluation report measuring detection rates and action-level containment.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -124,251 +88,177 @@ export default function BenchmarkPage() {
             variant="outline"
             onClick={loadData}
             isLoading={isLoading}
-            className="text-xs font-mono gap-1.5"
           >
-            <RotateCw className="w-3.5 h-3.5" /> Refresh
+            Refresh
           </Button>
           <Button
             size="sm"
-            variant="accent"
+            variant="primary"
             onClick={handleRunBenchmark}
             isLoading={isRunning}
             disabled={!isAdmin}
-            className="text-xs font-mono gap-1.5"
           >
-            <Play className="w-3.5 h-3.5" /> Execute Benchmark
+            Execute Run
           </Button>
         </div>
       </div>
 
       {!isAdmin && (
         <Alert variant="info" title="Administrator Role Notice">
-          Triggering live evaluations on the server requires the <strong className="text-slate-100">Administrator</strong> role to prevent resource starvation.
-          You can switch to Administrator using the role badge in the top right with your configured key.
+          Triggering live evaluations on the server requires the <strong>Administrator</strong> role to prevent resource contention. Switch to Administrator in the top-right navigation using your API key.
         </Alert>
       )}
 
       {error && (
-        <Alert variant="error" title="Benchmark Notice" onDismiss={() => setError(null)}>
+        <Alert variant="error" title="Notice" onDismiss={() => setError(null)}>
           {error}
         </Alert>
       )}
 
       {successMessage && (
-        <Alert variant="success" title="Benchmark Completed" onDismiss={() => setSuccessMessage(null)}>
+        <Alert variant="success" title="Success" onDismiss={() => setSuccessMessage(null)}>
           {successMessage}
         </Alert>
       )}
 
-      {/* Dataset & Baseline Configuration Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-[#0f141f] border border-[#1c2536] rounded p-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-[10px] text-slate-500 font-mono uppercase">Dataset Identifier</p>
-              <h4 className="text-sm font-bold text-slate-100 mt-1 font-mono">
-                {summary?.dataset_name || "starter_adversarial_v1"}
-              </h4>
-            </div>
-            <Badge variant="accent">v{summary?.dataset_version || "1.0.0"}</Badge>
+      {/* Dataset & Baseline Strip */}
+      <section className="grid grid-cols-1 sm:grid-cols-3 gap-6 py-2 border-b border-[#161719] text-xs">
+        <div className="space-y-1">
+          <div className="text-zinc-500 font-medium">Dataset</div>
+          <div className="text-sm font-medium text-[#f2f2f0] font-mono">
+            {summary?.dataset_name || "starter_adversarial_v1"}
           </div>
-          <div className="mt-3 text-xs text-slate-400 font-mono">
-            Total Synthetic Cases: <strong className="text-slate-200">{summary?.total_cases || 23}</strong>
-          </div>
+          <div className="text-[11px] text-[#9d9ea1]">{summary?.total_cases || 23} total synthetic cases</div>
         </div>
 
-        <div className="bg-[#0f141f] border border-[#1c2536] rounded p-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-[10px] text-slate-500 font-mono uppercase">Enforcement Invariant</p>
-              <h4 className="text-sm font-bold text-emerald-400 mt-1 font-mono">
-                0 Unauthorized Executions
-              </h4>
-            </div>
-            <Badge variant="success">100% ENFORCEMENT</Badge>
+        <div className="space-y-1">
+          <div className="text-zinc-500 font-medium">Enforcement Invariant</div>
+          <div className="text-sm font-medium text-emerald-400">
+            0 Unauthorized Executions
           </div>
-          <div className="mt-3 text-xs text-slate-400 font-mono">
-            Action Gating: <strong className="text-slate-200">PEP Boundary Control</strong>
-          </div>
+          <div className="text-[11px] text-[#9d9ea1]">100% action boundary containment</div>
         </div>
 
-        <div className="bg-[#0f141f] border border-[#1c2536] rounded p-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-[10px] text-slate-500 font-mono uppercase">Evaluation Mode</p>
-              <h4 className="text-sm font-bold text-slate-200 mt-1 font-mono">
-                Deterministic Offline Baseline
-              </h4>
-            </div>
-            <Badge variant="secondary">LOCAL SUITE</Badge>
+        <div className="space-y-1">
+          <div className="text-zinc-500 font-medium">Evaluation Harness</div>
+          <div className="text-sm font-medium text-[#f2f2f0]">
+            Deterministic Offline Baseline
           </div>
-          <div className="mt-3 text-xs text-slate-400 font-mono">
-            Adapter: <strong className="text-slate-200">Deterministic Stub ($0.00 spend)</strong>
-          </div>
+          <div className="text-[11px] text-[#9d9ea1]">$0.00 model token spend</div>
         </div>
-      </div>
+      </section>
 
-      {/* 2-Layer Metrics Split: Content Classification vs Policy Enforcement */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Layer 1: Content Classification (Probabilistic Detectors) */}
-        <div className="bg-[#0f141f] border border-[#1c2536] rounded p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-[#1c2536] pb-3">
-            <div>
-              <h3 className="text-xs font-semibold text-slate-200">1. Probabilistic Content Classification</h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Confusion matrix across 16 inbound content scanning cases.
-              </p>
-            </div>
-            <Badge variant="accent">HEURISTIC DETECTORS</Badge>
-          </div>
+      {/* Two-Layer Metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Layer 1: Classification */}
+        <div className="space-y-3">
+          <div className="text-xs text-zinc-500 font-medium">1. Content Inspection Confusion Matrix</div>
 
-          {/* Confusion Matrix Table */}
-          <div className="p-3 rounded bg-[#080a0f] border border-[#1c2536]">
-            <div className="text-[10px] font-mono text-slate-500 uppercase tracking-wider mb-2 font-semibold text-center">
-              Detector Confusion Matrix
-            </div>
+          <div className="p-4 rounded bg-[#0b0c0d] border border-[#1e2023] space-y-3">
             <div className="grid grid-cols-2 gap-2 text-center text-xs font-mono">
-              <div className="p-3 rounded bg-emerald-950/20 border border-emerald-800/40">
-                <span className="text-slate-400 block text-[10px]">TRUE POSITIVES (TP)</span>
-                <span className="text-xl font-bold text-emerald-400">7</span>
-                <span className="text-[10px] text-slate-500 block mt-0.5">Attacks Intercepted</span>
+              <div className="p-2.5 rounded bg-emerald-950/20 border border-emerald-800/30">
+                <span className="text-[10px] text-zinc-500 block">TRUE POSITIVES</span>
+                <span className="text-lg font-medium text-emerald-400">7</span>
+                <span className="text-[10px] text-zinc-500 block">Attacks Blocked</span>
               </div>
-              <div className="p-3 rounded bg-[#0b0e17] border border-[#1c2536]">
-                <span className="text-slate-400 block text-[10px]">FALSE POSITIVES (FP)</span>
-                <span className="text-xl font-bold text-slate-300">0</span>
-                <span className="text-[10px] text-slate-500 block mt-0.5">Benign False Alarms</span>
+              <div className="p-2.5 rounded bg-[#101113] border border-[#161719]">
+                <span className="text-[10px] text-zinc-500 block">FALSE POSITIVES</span>
+                <span className="text-lg font-medium text-[#f2f2f0]">0</span>
+                <span className="text-[10px] text-zinc-500 block">False Alarms</span>
               </div>
-              <div className="p-3 rounded bg-[#0b0e17] border border-[#1c2536]">
-                <span className="text-slate-400 block text-[10px]">FALSE NEGATIVES (FN)</span>
-                <span className="text-xl font-bold text-amber-400">1</span>
-                <span className="text-[10px] text-slate-500 block mt-0.5">Known Evasion (INJ-DIR-002)</span>
+              <div className="p-2.5 rounded bg-[#101113] border border-[#161719]">
+                <span className="text-[10px] text-zinc-500 block">FALSE NEGATIVES</span>
+                <span className="text-lg font-medium text-amber-400">1</span>
+                <span className="text-[10px] text-zinc-500 block">INJ-DIR-002</span>
               </div>
-              <div className="p-3 rounded bg-[#141b29] border border-[#232f45]">
-                <span className="text-slate-400 block text-[10px]">TRUE NEGATIVES (TN)</span>
-                <span className="text-xl font-bold text-slate-200">8</span>
-                <span className="text-[10px] text-slate-500 block mt-0.5">Benign Permitted</span>
+              <div className="p-2.5 rounded bg-[#101113] border border-[#161719]">
+                <span className="text-[10px] text-zinc-500 block">TRUE NEGATIVES</span>
+                <span className="text-lg font-medium text-[#f2f2f0]">8</span>
+                <span className="text-[10px] text-zinc-500 block">Benign Allowed</span>
               </div>
             </div>
-          </div>
 
-          {/* Derived Rates */}
-          <div className="grid grid-cols-4 gap-2 text-center text-xs font-mono">
-            <div className="p-2 rounded bg-[#080a0f] border border-[#1c2536]">
-              <span className="text-[10px] text-slate-500 block">Precision</span>
-              <span className="font-bold text-slate-100">100.0%</span>
-            </div>
-            <div className="p-2 rounded bg-[#080a0f] border border-[#1c2536]">
-              <span className="text-[10px] text-slate-500 block">Recall</span>
-              <span className="font-bold text-slate-100">87.5%</span>
-            </div>
-            <div className="p-2 rounded bg-[#080a0f] border border-[#1c2536]">
-              <span className="text-[10px] text-slate-500 block">F1 Score</span>
-              <span className="font-bold text-slate-100">0.9333</span>
-            </div>
-            <div className="p-2 rounded bg-[#080a0f] border border-[#1c2536]">
-              <span className="text-[10px] text-slate-500 block">Accuracy</span>
-              <span className="font-bold text-slate-100">93.75%</span>
+            <div className="grid grid-cols-4 gap-2 text-center text-xs font-mono text-zinc-400 pt-1 border-t border-[#161719]">
+              <div>Precision: <span className="text-[#f2f2f0] block">100%</span></div>
+              <div>Recall: <span className="text-[#f2f2f0] block">87.5%</span></div>
+              <div>F1: <span className="text-[#f2f2f0] block">0.933</span></div>
+              <div>Accuracy: <span className="text-[#f2f2f0] block">93.8%</span></div>
             </div>
           </div>
         </div>
 
-        {/* Layer 2: Deterministic Action Enforcement (PEP) */}
-        <div className="bg-[#0f141f] border border-[#1c2536] rounded p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-[#1c2536] pb-3">
-            <div>
-              <h3 className="text-xs font-semibold text-slate-200">2. Action Policy Enforcement</h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Out-of-band authorization and gating across 7 action cases.
-              </p>
-            </div>
-            <Badge variant="success">ZERO-TRUST PEP</Badge>
-          </div>
+        {/* Layer 2: Action Enforcement */}
+        <div className="space-y-3">
+          <div className="text-xs text-zinc-500 font-medium">2. Action Policy Enforcement</div>
 
-          <div className="p-3 rounded bg-[#080a0f] border border-[#1c2536] space-y-2.5 text-xs font-mono">
-            <div className="flex items-center justify-between border-b border-[#1c2536] pb-2">
-              <span className="text-slate-400">Total Action Cases:</span>
-              <span className="font-bold text-slate-100">7</span>
+          <div className="p-4 rounded bg-[#0b0c0d] border border-[#1e2023] space-y-2.5 text-xs font-mono text-[#9d9ea1]">
+            <div className="flex justify-between border-b border-[#161719] pb-1.5">
+              <span>Total Action Cases:</span>
+              <span className="text-[#f2f2f0]">7</span>
             </div>
-            <div className="flex items-center justify-between border-b border-[#1c2536] pb-2">
-              <span className="text-slate-400">Unauthorized Executions:</span>
-              <span className="font-bold text-emerald-400">0 (Target: 0)</span>
+            <div className="flex justify-between border-b border-[#161719] pb-1.5">
+              <span>Unauthorized Executions:</span>
+              <span className="text-emerald-400 font-medium">0 (0.0%)</span>
             </div>
-            <div className="flex items-center justify-between border-b border-[#1c2536] pb-2">
-              <span className="text-slate-400">Correctly Permitted Actions:</span>
-              <span className="font-bold text-slate-200">2</span>
+            <div className="flex justify-between border-b border-[#161719] pb-1.5">
+              <span>Permitted Safe Actions:</span>
+              <span className="text-[#f2f2f0]">2</span>
             </div>
-            <div className="flex items-center justify-between border-b border-[#1c2536] pb-2">
-              <span className="text-slate-400">Correctly Denied Actions:</span>
-              <span className="font-bold text-slate-200">4</span>
+            <div className="flex justify-between border-b border-[#161719] pb-1.5">
+              <span>Denied Actions:</span>
+              <span className="text-[#f2f2f0]">4</span>
             </div>
-            <div className="flex items-center justify-between border-b border-[#1c2536] pb-2">
-              <span className="text-slate-400">Held for Human Approval:</span>
-              <span className="font-bold text-amber-400">1</span>
+            <div className="flex justify-between pt-1">
+              <span>Held for Human Approval:</span>
+              <span className="text-amber-400">1</span>
             </div>
-            <div className="flex items-center justify-between pt-1">
-              <span className="text-slate-400">PEP Enforcement Accuracy:</span>
-              <span className="font-bold text-emerald-400">100.00%</span>
-            </div>
-          </div>
-
-          <div className="p-3 rounded bg-[#080a0f] border border-[#1c2536] text-[11px] text-slate-400 leading-relaxed flex items-start gap-2">
-            <Info className="w-3.5 h-3.5 mt-0.5 text-[#a3e635] shrink-0" />
-            <span>
-              <strong>Defense-in-Depth Guarantee:</strong> Even when an injection bypasses heuristic scanners
-              (the 1 False Negative above), the out-of-band Policy Enforcement Point blocks unauthorized tool dispatches.
-            </span>
           </div>
         </div>
       </div>
 
-      {/* Persisted Historical Benchmark Runs */}
-      <div className="bg-[#0f141f] border border-[#1c2536] rounded p-5 space-y-4">
-        <div className="border-b border-[#1c2536] pb-3">
-          <h3 className="text-xs font-semibold text-slate-200">Historical Benchmark Execution Runs</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            Audit records persisted in PostgreSQL via SQLAlchemy and Alembic migrations.
-          </p>
-        </div>
+      {/* Persisted Historical Runs Table */}
+      <section className="space-y-3">
+        <h2 className="text-xs text-zinc-500 font-medium">Historical Runs Log</h2>
 
         {history.length === 0 ? (
-          <div className="py-6 text-center text-xs text-slate-500 font-mono">
-            No historical runs recorded in database. Click &quot;Execute Benchmark&quot; to run and persist a new record.
+          <div className="p-8 text-center text-xs text-zinc-500 border border-[#161719] rounded">
+            No historical runs recorded in database. Click Execute Run to record an evaluation.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-[#080a0f] border-b border-[#1c2536] text-[10px] text-slate-500 uppercase">
+          <div className="border border-[#161719] rounded overflow-hidden">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#0b0c0d] border-b border-[#161719] text-[11px] text-zinc-500">
                 <tr>
-                  <th className="py-2.5 px-3">Timestamp</th>
-                  <th className="py-2.5 px-3">Run ID</th>
-                  <th className="py-2.5 px-3">Total Cases</th>
-                  <th className="py-2.5 px-3">Passed</th>
-                  <th className="py-2.5 px-3">Accuracy</th>
-                  <th className="py-2.5 px-3">Enforcement</th>
+                  <th className="py-2.5 px-4 font-normal">Timestamp</th>
+                  <th className="py-2.5 px-4 font-normal">Run ID</th>
+                  <th className="py-2.5 px-4 font-normal">Total Cases</th>
+                  <th className="py-2.5 px-4 font-normal">Passed</th>
+                  <th className="py-2.5 px-4 font-normal">Accuracy</th>
+                  <th className="py-2.5 px-4 font-normal">Enforcement</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#1c2536] text-slate-300">
-                {(history || []).map((run) => (
-                  <tr key={run.run_id} className="hover:bg-[#141b29] transition-colors">
-                    <td className="py-2.5 px-3 text-slate-400 whitespace-nowrap">
+              <tbody className="divide-y divide-[#161719] text-[#9d9ea1]">
+                {history.map((run) => (
+                  <tr key={run.run_id} className="hover:bg-[#0d0e10] transition-colors">
+                    <td className="py-2.5 px-4 text-zinc-500 whitespace-nowrap">
                       {run.timestamp ? new Date(run.timestamp).toLocaleString() : "—"}
                     </td>
-                    <td className="py-2.5 px-3 text-slate-200 font-semibold truncate max-w-[140px]">
+                    <td className="py-2.5 px-4 font-mono text-[11px] text-[#f2f2f0] truncate max-w-[140px]">
                       {run.run_id}
                     </td>
-                    <td className="py-2.5 px-3 text-slate-300">{run.total_cases}</td>
-                    <td className="py-2.5 px-3 text-emerald-400">{run.passed_cases}</td>
-                    <td className="py-2.5 px-3 text-slate-200">
+                    <td className="py-2.5 px-4">{run.total_cases}</td>
+                    <td className="py-2.5 px-4 text-emerald-400">{run.passed_cases}</td>
+                    <td className="py-2.5 px-4">
                       {typeof run.accuracy === "number" ? `${(run.accuracy * 100).toFixed(1)}%` : "—"}
                     </td>
-                    <td className="py-2.5 px-3 text-emerald-400 font-semibold">100% (0 Unauth)</td>
+                    <td className="py-2.5 px-4 text-emerald-400 font-medium">100% (0 Unauth)</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

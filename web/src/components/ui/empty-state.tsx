@@ -14,15 +14,15 @@ export function EmptyState({ icon: Icon = Inbox, title, description, action, cla
   return (
     <div
       className={clsx(
-        "flex flex-col items-center justify-center p-8 text-center rounded-md border border-[#1c2536] bg-[#0b0e17]/60",
+        "flex flex-col items-center justify-center p-8 text-center rounded border border-[#1e2023] bg-[#0b0c0d]",
         className
       )}
     >
-      <div className="w-10 h-10 rounded border border-[#1c2536] bg-[#0f141f] flex items-center justify-center mb-3 text-slate-400">
-        <Icon className="w-5 h-5 text-slate-400" />
+      <div className="w-9 h-9 rounded border border-[#1e2023] bg-[#121316] flex items-center justify-center mb-3 text-zinc-400">
+        <Icon className="w-4 h-4 text-zinc-400" />
       </div>
-      <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-200 mb-1 font-mono">{title}</h4>
-      <p className="text-xs text-slate-400 max-w-sm mb-4 leading-relaxed">{description}</p>
+      <h4 className="text-xs font-medium text-[#f2f2f0] mb-1">{title}</h4>
+      <p className="text-xs text-[#9d9ea1] max-w-sm mb-4 leading-relaxed">{description}</p>
       {action && <div>{action}</div>}
     </div>
   );

@@ -1,20 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import {
-  FileText,
-  Search,
-  Filter,
-  ChevronLeft,
-  ChevronRight,
-  RotateCw,
-  Copy,
-  Check,
-  Eye,
-  ShieldCheck,
-  Info,
-} from "lucide-react";
-import { Badge, StatusBadge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { Dialog } from "@/components/ui/dialog";
@@ -89,257 +76,203 @@ export default function AuditPage() {
   );
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    <div className="w-full max-w-5xl mx-auto px-6 py-8 space-y-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1c2536]">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-lg font-semibold tracking-tight text-slate-100">
-              Structured Audit & Telemetry Explorer
-            </h1>
-            <Badge variant="accent" className="text-[10px]">APPEND-ONLY LEDGER</Badge>
-          </div>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Browse verified, queryable security telemetry records with recursive credential sanitization.
+      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 pb-4 border-b border-[#161719]">
+        <div className="space-y-1">
+          <h1 className="text-lg font-medium text-[#f2f2f0] tracking-tight">Audit Explorer</h1>
+          <p className="text-xs text-[#9d9ea1]">
+            Search verified, append-only security telemetry records stored in PostgreSQL.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={loadAuditEvents}
-            isLoading={isLoading}
-            className="text-xs font-mono gap-1.5"
-          >
-            <RotateCw className="w-3.5 h-3.5" /> Refresh
-          </Button>
-        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={loadAuditEvents}
+          isLoading={isLoading}
+        >
+          Refresh
+        </Button>
       </div>
 
       {/* Permission Guidance Banner */}
       {(isGuest || isPermissionError) && (
-        <Alert variant="info" title="Session Permission Guidance">
-          Your active session role is <strong className="font-mono text-slate-100">{session?.role || "guest"}</strong>. The guest role has read-only access to basic inspection. Querying the full PostgreSQL audit telemetry ledger requires <code className="font-mono text-slate-100">audit:read</code> (granted to Analyst, Supervisor, or Admin roles). Click the role badge in the top right to elevate with your configured API key.
+        <Alert variant="info" title="Session Role Guidance">
+          Your active session role is <strong>{session?.role || "guest"}</strong>. Querying the full PostgreSQL audit telemetry ledger requires <code className="font-mono text-zinc-300">audit:read</code> (granted to Analyst, Supervisor, or Admin roles). Elevate your session via the role selector in the top-right navigation.
         </Alert>
       )}
 
       {error && !isPermissionError && (
-        <Alert variant="error" title="Audit Query Notice" onDismiss={() => setError(null)}>
+        <Alert variant="error" title="Notice" onDismiss={() => setError(null)}>
           {error}
         </Alert>
       )}
 
-      {/* Filter Toolbar */}
-      <div className="p-3.5 bg-[#0f141f] border border-[#1c2536] rounded">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div>
-            <label htmlFor="event-type-select" className="text-[11px] text-slate-400 font-mono mb-1 block">
-              Filter by Event Type
-            </label>
-            <select
-              id="event-type-select"
-              value={eventTypeFilter}
-              onChange={(e) => {
-                setEventTypeFilter(e.target.value);
+      {/* Filter Toolbar (Clean row without boxed container) */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 text-xs">
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={eventTypeFilter}
+            onChange={(e) => {
+              setEventTypeFilter(e.target.value);
+              setPage(0);
+            }}
+            className="bg-[#0e0f11] border border-[#1e2023] rounded px-2.5 py-1 text-xs text-[#f2f2f0] focus:outline-none focus:border-zinc-500"
+          >
+            <option value="">All Event Types</option>
+            <option value="POLICY_DECISION">POLICY_DECISION</option>
+            <option value="DETECTOR_SCAN">DETECTOR_SCAN</option>
+            <option value="TOOL_INVOCATION">TOOL_INVOCATION</option>
+            <option value="APPROVAL_DECISION">APPROVAL_DECISION</option>
+            <option value="APPROVAL_CONSUMPTION">APPROVAL_CONSUMPTION</option>
+          </select>
+
+          <input
+            type="text"
+            value={requestIdFilter}
+            onChange={(e) => {
+              setRequestIdFilter(e.target.value);
+              setPage(0);
+            }}
+            placeholder="Search request_id..."
+            className="bg-[#0e0f11] border border-[#1e2023] rounded px-3 py-1 text-xs font-mono text-[#f2f2f0] placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
+          />
+
+          {(eventTypeFilter || requestIdFilter) && (
+            <button
+              onClick={() => {
+                setEventTypeFilter("");
+                setRequestIdFilter("");
                 setPage(0);
               }}
-              className="w-full bg-[#080a0f] border border-[#1c2536] rounded px-2.5 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-[#a3e635]"
+              className="text-xs text-zinc-400 hover:text-white"
             >
-              <option value="">All Event Types</option>
-              <option value="POLICY_DECISION">POLICY_DECISION</option>
-              <option value="DETECTOR_SCAN">DETECTOR_SCAN</option>
-              <option value="TOOL_INVOCATION">TOOL_INVOCATION</option>
-              <option value="APPROVAL_DECISION">APPROVAL_DECISION</option>
-              <option value="APPROVAL_CONSUMPTION">APPROVAL_CONSUMPTION</option>
-            </select>
-          </div>
+              Clear
+            </button>
+          )}
+        </div>
 
-          <div>
-            <label htmlFor="request-id-search" className="text-[11px] text-slate-400 font-mono mb-1 block">
-              Search by Request ID
-            </label>
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
-              <input
-                id="request-id-search"
-                type="text"
-                value={requestIdFilter}
-                onChange={(e) => {
-                  setRequestIdFilter(e.target.value);
-                  setPage(0);
-                }}
-                placeholder="Paste request_id..."
-                className="w-full bg-[#080a0f] border border-[#1c2536] rounded pl-8 pr-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-[#a3e635]"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-end justify-between">
-            <span className="text-xs text-slate-400 font-mono">
-              Records: <strong className="text-slate-200">{totalCount}</strong>
-            </span>
-            {(eventTypeFilter || requestIdFilter) && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setEventTypeFilter("");
-                  setRequestIdFilter("");
-                  setPage(0);
-                }}
-                className="text-xs text-[#a3e635] font-mono"
-              >
-                Clear Filters
-              </Button>
-            )}
-          </div>
+        <div className="text-xs text-zinc-500 font-mono">
+          {totalCount} records
         </div>
       </div>
 
       {/* Audit Table */}
-      <div className="bg-[#0f141f] border border-[#1c2536] rounded overflow-hidden">
-        {(!events || events.length === 0) ? (
-          <div className="p-8">
-            <EmptyState
-              icon={FileText}
-              title="No Audit Records Found"
-              description="No audit events matched the current filter parameters. Telemetry is appended whenever actions, inspections, or approvals occur."
-            />
-          </div>
-        ) : (
+      {(!events || events.length === 0) ? (
+        <EmptyState
+          title="No Audit Records Found"
+          description="No audit events matched the current filter parameters."
+        />
+      ) : (
+        <div className="border border-[#161719] rounded overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-[#080a0f] border-b border-[#1c2536] text-[10px] text-slate-500 uppercase tracking-wider">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#0b0c0d] border-b border-[#161719] text-[11px] text-zinc-500">
                 <tr>
-                  <th className="py-2.5 px-4 font-semibold">Timestamp</th>
-                  <th className="py-2.5 px-4 font-semibold">Event Type</th>
-                  <th className="py-2.5 px-4 font-semibold">Component</th>
-                  <th className="py-2.5 px-4 font-semibold">Decision</th>
-                  <th className="py-2.5 px-4 font-semibold">Request ID</th>
-                  <th className="py-2.5 px-4 font-semibold text-right">Details</th>
+                  <th className="py-2.5 px-4 font-normal">Timestamp</th>
+                  <th className="py-2.5 px-4 font-normal">Event Type</th>
+                  <th className="py-2.5 px-4 font-normal">Component</th>
+                  <th className="py-2.5 px-4 font-normal">Decision</th>
+                  <th className="py-2.5 px-4 font-normal">Request ID</th>
+                  <th className="py-2.5 px-4 font-normal text-right">Details</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#1c2536] text-slate-300">
-                {(events || []).map((event) => {
-                  let formattedDate = "—";
-                  try {
-                    if (event.timestamp) formattedDate = new Date(event.timestamp).toLocaleString();
-                  } catch {
-                    // Ignore date format error
-                  }
-                  return (
-                    <tr key={event.event_id} className="hover:bg-[#141b29] transition-colors">
-                      <td className="py-2.5 px-4 text-slate-400 whitespace-nowrap">
-                        {formattedDate}
-                      </td>
-                      <td className="py-2.5 px-4 font-semibold text-slate-200">
-                        {event.event_type}
-                      </td>
-                      <td className="py-2.5 px-4 text-slate-300">
-                        {event.component}
-                      </td>
-                      <td className="py-2.5 px-4">
-                        {event.decision ? (
-                          <StatusBadge status={event.decision} />
-                        ) : (
-                          <span className="text-slate-500 text-[10px]">—</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-4 text-slate-400">
-                        <div className="flex items-center gap-1.5">
-                          <span className="truncate max-w-[120px]">{event.request_id}</span>
-                          <button
-                            onClick={() => handleCopy(event.request_id)}
-                            className="text-slate-400 hover:text-slate-200"
-                            title="Copy Request ID"
-                          >
-                            {copiedId === event.request_id ? (
-                              <Check className="w-3 h-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="w-3 h-3" />
-                            )}
-                          </button>
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-4 text-right">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setSelectedEvent(event)}
-                          className="text-xs text-[#a3e635] hover:text-[#bef264] gap-1 font-mono"
+              <tbody className="divide-y divide-[#161719] text-[#9d9ea1]">
+                {events.map((event) => (
+                  <tr key={event.event_id} className="hover:bg-[#0d0e10] transition-colors">
+                    <td className="py-2.5 px-4 text-zinc-500 whitespace-nowrap">
+                      {event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : "—"}
+                    </td>
+                    <td className="py-2.5 px-4 text-[#f2f2f0]">{event.event_type}</td>
+                    <td className="py-2.5 px-4">{event.component}</td>
+                    <td className="py-2.5 px-4">
+                      {event.decision ? (
+                        <StatusBadge status={event.decision} />
+                      ) : (
+                        <span className="text-zinc-600 text-[10px]">—</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-4 font-mono text-[11px] text-zinc-400">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate max-w-[120px]">{event.request_id}</span>
+                        <button
+                          onClick={() => handleCopy(event.request_id)}
+                          className="hover:text-white transition-colors"
                         >
-                          <Eye className="w-3 h-3" /> Inspect
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                          {copiedId === event.request_id ? "✓" : "copy"}
+                        </button>
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-4 text-right">
+                      <button
+                        onClick={() => setSelectedEvent(event)}
+                        className="text-xs text-zinc-400 hover:text-white underline"
+                      >
+                        Inspect
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        )}
 
-        {/* Pagination Controls */}
-        <div className="p-3 bg-[#080a0f] border-t border-[#1c2536] flex items-center justify-between text-xs font-mono">
-          <span className="text-slate-400">
-            Page {page + 1} of {totalPages}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={page === 0 || isLoading}
-              className="text-xs font-mono"
-            >
-              <ChevronLeft className="w-3.5 h-3.5 mr-1" /> Previous
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-              disabled={page >= totalPages - 1 || isLoading}
-              className="text-xs font-mono"
-            >
-              Next <ChevronRight className="w-3.5 h-3.5 ml-1" />
-            </Button>
+          {/* Pagination */}
+          <div className="p-3 bg-[#0b0c0d] border-t border-[#161719] flex items-center justify-between text-xs text-zinc-500 font-mono">
+            <span>Page {page + 1} of {totalPages}</span>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0 || isLoading}
+              >
+                Previous
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1 || isLoading}
+              >
+                Next
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* JSON Payload Inspector Dialog */}
+      {/* JSON Inspector Dialog */}
       <Dialog
         open={selectedEvent !== null}
         onClose={() => setSelectedEvent(null)}
-        title="Audit Telemetry Event Record"
+        title="Audit Record Detail"
         description="Sanitized metadata and cryptographic event attributes."
       >
         {selectedEvent && (
-          <div className="space-y-3 text-xs font-mono">
-            <div className="grid grid-cols-2 gap-2 p-3 rounded bg-[#080a0f] border border-[#1c2536]">
+          <div className="space-y-3 text-xs">
+            <div className="grid grid-cols-2 gap-2 p-3 rounded bg-[#08090a] border border-[#1e2023] font-mono text-[11px]">
               <div>
-                <span className="text-slate-500">Event ID:</span>
-                <div className="text-slate-200 truncate">{selectedEvent.event_id}</div>
+                <span className="text-zinc-500">Event ID:</span>
+                <div className="text-[#f2f2f0] truncate">{selectedEvent.event_id}</div>
               </div>
               <div>
-                <span className="text-slate-500">Request ID:</span>
-                <div className="text-slate-200 truncate">{selectedEvent.request_id}</div>
+                <span className="text-zinc-500">Request ID:</span>
+                <div className="text-[#f2f2f0] truncate">{selectedEvent.request_id}</div>
               </div>
               <div>
-                <span className="text-slate-500">Component:</span>
-                <div className="text-slate-200">{selectedEvent.component}</div>
+                <span className="text-zinc-500">Component:</span>
+                <div className="text-[#f2f2f0]">{selectedEvent.component}</div>
               </div>
               <div>
-                <span className="text-slate-500">Policy Version:</span>
-                <div className="text-slate-200">{selectedEvent.policy_version || "1.0.0"}</div>
+                <span className="text-zinc-500">Policy Version:</span>
+                <div className="text-[#f2f2f0]">{selectedEvent.policy_version || "1.0.0"}</div>
               </div>
             </div>
 
-            <div>
-              <span className="text-slate-400 block mb-1 font-semibold uppercase text-[10px]">
-                Event Metadata (Sanitized)
-              </span>
-              <pre className="p-3 rounded bg-[#080a0f] border border-[#1c2536] text-slate-300 text-[11px] overflow-x-auto max-h-72">
+            <div className="space-y-1">
+              <span className="text-xs text-zinc-500 block">Event Metadata (Sanitized)</span>
+              <pre className="p-3 rounded bg-[#08090a] border border-[#1e2023] text-[#f2f2f0] font-mono text-[11px] overflow-x-auto max-h-72">
                 {JSON.stringify(selectedEvent.metadata || {}, null, 2)}
               </pre>
             </div>
