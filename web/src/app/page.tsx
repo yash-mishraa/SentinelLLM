@@ -70,7 +70,7 @@ export default function OverviewDashboard() {
 
         if (ready.status === "rejected") {
           setError(
-            "Backend connection error: Could not reach the SentinelLLM REST API. Check that the FastAPI server is running on :8000."
+            "Backend connection error: Could not reach the SentinelLLM REST API. Check that the backend URL is configured and healthy."
           );
         }
       } catch (err) {

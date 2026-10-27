@@ -79,19 +79,19 @@ export function getApiKeyForRole(role: UserRole): string | null {
 
   switch (role) {
     case "admin":
-      key = process.env.SENTINELLLM_ADMIN_KEY;
+      key = process.env.SENTINELLLM_ADMIN_KEY || process.env.SENTINELLLM_ROLE_ADMIN_KEY;
       devDefault = "sentinel-admin-key-secret";
       break;
     case "supervisor":
-      key = process.env.SENTINELLLM_SUPERVISOR_KEY;
+      key = process.env.SENTINELLLM_SUPERVISOR_KEY || process.env.SENTINELLLM_ROLE_SUPERVISOR_KEY;
       devDefault = "sentinel-supervisor-key-secret";
       break;
     case "analyst":
-      key = process.env.SENTINELLLM_ANALYST_KEY;
+      key = process.env.SENTINELLLM_ANALYST_KEY || process.env.SENTINELLLM_ROLE_ANALYST_KEY;
       devDefault = "sentinel-analyst-key-secret";
       break;
     case "guest":
-      key = process.env.SENTINELLLM_GUEST_KEY;
+      key = process.env.SENTINELLLM_GUEST_KEY || process.env.SENTINELLLM_ROLE_GUEST_KEY;
       devDefault = "sentinel-guest-key-secret";
       break;
     default:

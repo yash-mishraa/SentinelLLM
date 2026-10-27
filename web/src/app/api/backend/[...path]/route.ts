@@ -9,7 +9,10 @@ import {
 } from "@/lib/session";
 
 const BACKEND_URL =
-  process.env.SENTINELLLM_API_URL || process.env.BACKEND_URL || "http://127.0.0.1:8000";
+  process.env.SENTINELLLM_BACKEND_URL ||
+  process.env.SENTINELLLM_API_URL ||
+  process.env.BACKEND_URL ||
+  "http://127.0.0.1:8000";
 
 async function handleProxy(
   request: NextRequest,

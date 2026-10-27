@@ -101,7 +101,7 @@ export function Header() {
           {backendOnline === false && (
             <Badge variant="destructive" className="gap-1.5">
               <AlertCircle className="w-3 h-3" />
-              API OFFLINE (:8000)
+              API OFFLINE
             </Badge>
           )}
           {backendOnline === null && (
