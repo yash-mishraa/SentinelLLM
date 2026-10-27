@@ -6,6 +6,8 @@ from pathlib import Path
 
 from promptprobe.baselines import BASELINE_HEURISTIC, BASELINE_NO_DETECTION
 from promptprobe.dataset import load_dataset, load_scenario_dataset
+from promptprobe.hybrid import HybridBenchmarkRunner
+from promptprobe.hybrid_models import HybridBenchmarkReport
 from promptprobe.models import BenchmarkReport
 from promptprobe.runner import BenchmarkRunner
 from promptprobe.scenario_models import ScenarioBenchmarkReport
@@ -182,6 +184,138 @@ def run_scenarios(
     return 0 if report.metrics.unauthorized_executions == 0 else 1
 
 
+def format_hybrid_report_summary(report: HybridBenchmarkReport) -> str:
+    """Format hybrid evaluation report into a clear technical summary."""
+    m = report.metrics
+    p_str = f"{m.gateway_precision:.4f}" if m.gateway_precision is not None else "N/A"
+    r_str = f"{m.gateway_recall:.4f}" if m.gateway_recall is not None else "N/A"
+    f1_str = f"{m.gateway_f1:.4f}" if m.gateway_f1 is not None else "N/A"
+
+    mode_label = "LIVE NETWORK EVALUATION" if report.is_live else "OFFLINE SYNTHETIC SIMULATION"
+
+    lines: list[str] = [
+        "=" * 78,
+        f" PromptProbe Hybrid Evaluation Report ({report.provider} / {report.model})",
+        "=" * 78,
+        f"Dataset:       {report.dataset_name} ({m.total_cases} cases evaluated)",
+        f"Version:       Dataset v{report.dataset_version}",
+        f"Mode:          {mode_label}",
+        f"Timestamp:     {report.run_timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}",
+        "-" * 78,
+        "1. SENTINELLLM GATEWAY METRICS (Content Classification Layer)",
+        "-" * 78,
+        f"  Evaluated Content Cases:  {m.content_cases}",
+        f"  Attacks Intercepted (TP): {m.attacks_blocked_by_gateway}",
+        f"  Attacks Leaked to LLM(FN):{m.attacks_reaching_model}",
+        f"  Benign Passed to LLM(TN): {m.benign_dispatched}",
+        f"  Benign False Alarms (FP): {m.benign_blocked_by_gateway}",
+        f"  Gateway Precision:        {p_str}",
+        f"  Gateway Recall:           {r_str}",
+        f"  Gateway F1 Score:         {f1_str}",
+        f"  Gateway Accuracy:         {m.gateway_accuracy:.4f}",
+        "-" * 78,
+        "2. POLICY ENFORCEMENT METRICS (Tool Authorization Layer)",
+        "-" * 78,
+        f"  Evaluated Action Cases:   {m.action_cases}",
+        f"  Actions Enforced:         {m.actions_enforced_correctly}",
+        f"  Unauthorized Prevented:   {m.unauthorized_actions_prevented}",
+        "-" * 78,
+        "3. MODEL TELEMETRY & COST EFFICIENCY",
+        "-" * 78,
+        f"  Total Tokens Consumed:    {m.total_tokens_consumed}",
+        f"  Tokens Saved by Gateway:  {m.tokens_saved_by_gateway}",
+        (
+            f"  Total Cost (USD):         ${m.total_cost_usd:.6f} "
+            f"{'(Estimated)' if m.is_cost_estimated else '(Reported)'}"
+        ),
+        f"  Provider Failures:        {m.provider_failures}",
+        (
+            f"  Budget Exhausted:         "
+            f"{'YES (Halted early)' if m.budget_exhausted else 'NO (Within budget)'}"
+        ),
+        "=" * 78,
+    ]
+    return "\n".join(lines)
+
+
+def run_hybrid(
+    provider: str,
+    model: str | None,
+    mode: str,
+    base_url: str | None,
+    max_budget: float,
+    max_cases: int | None,
+    live_opt_in: bool,
+    unprotected: bool,
+    dataset_path: str | None,
+    output_path: str | None,
+) -> int:
+    """Execute hybrid evaluation across SentinelLLM gateway and model adapter."""
+    from sentinelllm.adapters import (
+        MAX_ALLOWED_BUDGET_CEILING_USD,
+        BaseLLMAdapter,
+        BudgetTracker,
+        FakeLLMAdapter,
+        LLMConfig,
+        OpenAICompatibleAdapter,
+        RunBudget,
+        SafetyOptInRequiredError,
+    )
+
+    if provider != "fake" and not live_opt_in:
+        raise SafetyOptInRequiredError(
+            "Safety guard: live LLM evaluation requires --live-opt-in confirmation flag."
+        )
+
+    dataset = load_dataset(dataset_path)
+
+    budget_usd = min(max_budget, MAX_ALLOWED_BUDGET_CEILING_USD)
+    budget = RunBudget(max_cost_usd=budget_usd)
+    tracker = BudgetTracker(budget=budget)
+
+    adapter: BaseLLMAdapter
+    if provider == "openai":
+        target_model = model or "gpt-4o-mini"
+        config = LLMConfig(
+            provider="openai",
+            model=target_model,
+            base_url=base_url,
+            live_opt_in=live_opt_in,
+        )
+        adapter = OpenAICompatibleAdapter(config=config, budget_tracker=tracker)
+    else:
+        target_model = model or "fake-model"
+        config = LLMConfig(
+            provider="fake",
+            model=target_model,
+        )
+        adapter = FakeLLMAdapter(
+            config=config,
+            budget_tracker=tracker,
+            mode=mode,
+        )
+
+    runner = HybridBenchmarkRunner(
+        adapter=adapter,
+        dataset=dataset,
+        budget_tracker=tracker,
+        unprotected_baseline=unprotected,
+        max_cases=max_cases,
+    )
+
+    report = runner.run()
+    print(format_hybrid_report_summary(report))
+
+    if output_path:
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with open(out, "w", encoding="utf-8") as f:
+            f.write(report.model_dump_json(indent=2))
+        print(f"\n[Artifact] Wrote JSON hybrid benchmark report to: {out.resolve()}")
+
+    return 0 if report.metrics.provider_failures == 0 else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint for PromptProbe benchmark execution."""
     parser = argparse.ArgumentParser(
@@ -254,6 +388,69 @@ def main(argv: list[str] | None = None) -> int:
     # 3. demo command (end-to-end walkthrough)
     subparsers.add_parser("demo", help="Run end-to-end interactive runtime security demonstration")
 
+    # 4. hybrid command (SentinelLLM + LLM Adapter)
+    hybrid_parser = subparsers.add_parser(
+        "hybrid", help="Run hybrid evaluation across SentinelLLM gateway and LLM adapter"
+    )
+    hybrid_parser.add_argument(
+        "--provider",
+        choices=["fake", "openai"],
+        default="fake",
+        help="LLM provider adapter to evaluate (default: fake for offline testing)",
+    )
+    hybrid_parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="Model identifier (e.g. 'gpt-4o-mini', 'mock-model')",
+    )
+    hybrid_parser.add_argument(
+        "--mode",
+        choices=["standard", "refusal", "vulnerable"],
+        default="standard",
+        help="Simulated model behavioral mode for fake adapter (default: standard)",
+    )
+    hybrid_parser.add_argument(
+        "--base-url",
+        type=str,
+        default=None,
+        help="Optional base URL for OpenAI-compatible endpoints (e.g. local Ollama)",
+    )
+    hybrid_parser.add_argument(
+        "--max-budget",
+        type=float,
+        default=0.20,
+        help="Maximum run budget ceiling in USD (default: $0.20, ceiling: $1.00)",
+    )
+    hybrid_parser.add_argument(
+        "--max-cases",
+        type=int,
+        default=None,
+        help="Maximum number of cases to evaluate (default: all)",
+    )
+    hybrid_parser.add_argument(
+        "--live-opt-in",
+        action="store_true",
+        help="Explicit confirmation required to make live network calls",
+    )
+    hybrid_parser.add_argument(
+        "--unprotected",
+        action="store_true",
+        help="Evaluate unprotected baseline without SentinelLLM gateway interception",
+    )
+    hybrid_parser.add_argument(
+        "--dataset",
+        type=str,
+        default=None,
+        help="Path to custom benchmark dataset JSON file",
+    )
+    hybrid_parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Optional path to write full JSON hybrid report artifact",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command is None:
@@ -269,6 +466,20 @@ def main(argv: list[str] | None = None) -> int:
             from sentinelllm.demo import run_demo
 
             return run_demo()
+
+        if args.command == "hybrid":
+            return run_hybrid(
+                provider=args.provider,
+                model=args.model,
+                mode=args.mode,
+                base_url=args.base_url,
+                max_budget=args.max_budget,
+                max_cases=args.max_cases,
+                live_opt_in=args.live_opt_in,
+                unprotected=args.unprotected,
+                dataset_path=args.dataset,
+                output_path=args.output,
+            )
 
         if args.command == "scenarios":
             return run_scenarios(

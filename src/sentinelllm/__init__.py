@@ -6,6 +6,19 @@ validation, and safe tool execution primitives for language model workloads.
 
 from typing import Final
 
+from sentinelllm.adapters import (
+    BaseLLMAdapter,
+    BudgetTracker,
+    FakeLLMAdapter,
+    LLMConfig,
+    LLMResponse,
+    OpenAICompatibleAdapter,
+    RunBudget,
+)
+from sentinelllm.api import (
+    ApiConfig,
+    create_app,
+)
 from sentinelllm.approvals import (
     ApprovalRequest,
     ApprovalService,
@@ -31,6 +44,12 @@ from sentinelllm.contracts import (
     assert_valid_trust_binding,
     parse_untrusted_content,
     parse_untrusted_context,
+)
+from sentinelllm.db import (
+    DatabaseConfig,
+    PostgresApprovalStore,
+    SqlApprovalStore,
+    SqlAuditStore,
 )
 from sentinelllm.detectors import (
     BaseDetector,
@@ -58,10 +77,11 @@ from sentinelllm.tools import (
     ToolSpec,
 )
 
-__version__: Final[str] = "0.1.0.dev0"
+__version__: Final[str] = "1.0.0rc1"
 
 __all__: Final[list[str]] = [
     "AnonymousPrincipal",
+    "ApiConfig",
     "ApplicationInstruction",
     "ApprovalRequest",
     "ApprovalService",
@@ -71,29 +91,40 @@ __all__: Final[list[str]] = [
     "AuthorizationRequest",
     "BaseContentItem",
     "BaseDetector",
+    "BaseLLMAdapter",
+    "BudgetTracker",
     "CanaryConfig",
     "CanaryLeakDetector",
     "ContentProvenance",
+    "DatabaseConfig",
     "Decision",
     "DetectorRegistry",
     "ExtractionRule",
+    "FakeLLMAdapter",
     "InMemoryApprovalStore",
     "InboundUntrustedContent",
     "InjectionPatternDetector",
     "InjectionRule",
     "InstructionExtractionDetector",
+    "LLMConfig",
+    "LLMResponse",
     "LifecycleOrchestrator",
     "LifecycleResult",
+    "OpenAICompatibleAdapter",
     "PolicyConfig",
     "PolicyDecisionPoint",
     "PolicyEnforcementPoint",
     "PolicyRule",
+    "PostgresApprovalStore",
     "RequestContext",
     "RetrievedChunk",
+    "RunBudget",
     "SecurityContent",
     "SecurityDecision",
     "SecurityFinding",
     "Severity",
+    "SqlApprovalStore",
+    "SqlAuditStore",
     "ToolExecutionResult",
     "ToolOutput",
     "ToolRegistry",
@@ -102,6 +133,7 @@ __all__: Final[list[str]] = [
     "__version__",
     "assert_valid_trust_binding",
     "compute_argument_hash",
+    "create_app",
     "parse_untrusted_content",
     "parse_untrusted_context",
 ]

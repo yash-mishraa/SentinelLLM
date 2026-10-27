@@ -12,8 +12,8 @@ def test_sentinelllm_version_format() -> None:
     version = sentinelllm.__version__
     assert isinstance(version, str)
     assert len(version) > 0
-    # Standard semver / dev version regex (e.g. 0.1.0 or 0.1.0.dev0)
-    pattern = r"^\d+\.\d+\.\d+(\.dev\d+)?$"
+    # Standard PEP 440 version regex (e.g. 1.0.0, 1.0.0rc1, 0.1.0.dev0)
+    pattern = r"^\d+\.\d+\.\d+((a|b|rc)\d+)?(\.dev\d+)?$"
     assert re.match(pattern, version) is not None, f"Unexpected version format: {version}"
 
 
@@ -37,7 +37,8 @@ def test_promptprobe_version_format() -> None:
     version = promptprobe.__version__
     assert isinstance(version, str)
     assert len(version) > 0
-    pattern = r"^\d+\.\d+\.\d+(\.dev\d+)?$"
+    # Standard PEP 440 version regex (e.g. 1.0.0, 1.0.0rc1, 0.1.0.dev0)
+    pattern = r"^\d+\.\d+\.\d+((a|b|rc)\d+)?(\.dev\d+)?$"
     assert re.match(pattern, version) is not None, f"Unexpected version format: {version}"
 
 

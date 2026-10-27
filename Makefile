@@ -1,4 +1,4 @@
-.PHONY: help install lint format typecheck test check build clean benchmark scenarios demo
+.PHONY: help install lint format typecheck test check build clean benchmark scenarios demo web-check web-dev migrate smoke-test docker-build
 
 PYTHON ?= $(shell if [ -f .venv/bin/python ]; then echo .venv/bin/python; else echo python3; fi)
 PIP ?= $(shell if [ -f .venv/bin/pip ]; then echo .venv/bin/pip; else echo pip; fi)
@@ -7,31 +7,36 @@ help:
 	@echo "SentinelLLM Development Automation"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  install    Install package in editable mode with development dependencies"
-	@echo "  lint       Run Ruff linting checks"
-	@echo "  format     Format code using Ruff"
-	@echo "  typecheck  Run Mypy static type analysis"
-	@echo "  test       Run unit, integration, and security tests with coverage"
-	@echo "  benchmark  Run PromptProbe adversarial evaluation benchmark suite"
-	@echo "  scenarios  Run PromptProbe multi-step adversarial scenario evaluations"
-	@echo "  check      Run full quality gate pipeline (lint, format check, typecheck, test, build)"
-	@echo "  build      Build source distribution and wheel packages"
-	@echo "  clean      Remove temporary build artifacts and cache files"
+	@echo "  install      Install package in editable mode with development dependencies"
+	@echo "  lint         Run Ruff linting checks"
+	@echo "  format       Format code using Ruff"
+	@echo "  typecheck    Run Mypy static type analysis"
+	@echo "  test         Run unit, integration, and security tests with coverage"
+	@echo "  benchmark    Run PromptProbe adversarial evaluation benchmark suite"
+	@echo "  scenarios    Run PromptProbe multi-step adversarial scenario evaluations"
+	@echo "  check        Run full quality gate pipeline (lint, format check, typecheck, test, build)"
+	@echo "  web-check    Run Next.js frontend checks (typecheck, lint, unit tests, build)"
+	@echo "  web-dev      Start Next.js frontend development server"
+	@echo "  migrate      Run database schema migrations to HEAD"
+	@echo "  smoke-test   Execute automated post-deployment smoke test suite"
+	@echo "  docker-build Build production multi-stage Docker container"
+	@echo "  build        Build source distribution and wheel packages"
+	@echo "  clean        Remove temporary build artifacts and cache files"
 
 install:
 	$(PIP) install --upgrade pip
-	$(PIP) install -e ".[dev]"
+	$(PIP) install -e ".[dev,postgres]"
 	@if command -v pre-commit >/dev/null 2>&1; then pre-commit install; fi
 
 lint:
-	$(PYTHON) -m ruff check src promptprobe tests
+	$(PYTHON) -m ruff check src promptprobe tests scripts
 
 format:
-	$(PYTHON) -m ruff format src promptprobe tests
-	$(PYTHON) -m ruff check --fix src promptprobe tests
+	$(PYTHON) -m ruff format src promptprobe tests scripts
+	$(PYTHON) -m ruff check --fix src promptprobe tests scripts
 
 typecheck:
-	$(PYTHON) -m mypy src promptprobe tests
+	$(PYTHON) -m mypy src promptprobe tests scripts
 
 test:
 	$(PYTHON) -m pytest --cov=sentinelllm --cov=promptprobe --cov-report=term-missing tests
@@ -45,14 +50,29 @@ scenarios:
 demo:
 	$(PYTHON) -m sentinelllm.demo
 
+migrate:
+	$(PYTHON) scripts/migrate.py upgrade head
+
+smoke-test:
+	$(PYTHON) scripts/smoke_test.py
+
+docker-build:
+	docker build -t sentinelllm:latest .
+
 
 build:
 	$(PYTHON) -m build
 
 check: lint typecheck test build
-	$(PYTHON) -m ruff format --check src promptprobe tests
+	$(PYTHON) -m ruff format --check src promptprobe tests scripts
 	@echo ""
 	@echo "All quality gate checks passed successfully."
+
+web-check:
+	cd web && npm run typecheck && npm run lint && npm test && npm run build
+
+web-dev:
+	cd web && npm run dev
 
 clean:
 	rm -rf build/ dist/ *.egg-info src/*.egg-info

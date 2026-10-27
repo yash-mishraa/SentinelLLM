@@ -1,0 +1,46 @@
+# Git and version control
+.git
+.gitignore
+.github
+
+# Python bytecode and caches
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.hypothesis
+.coverage
+.coverage.*
+htmlcov
+dist
+build
+*.egg-info
+
+# Local virtual environments
+.venv
+venv
+env
+
+# Secrets and environment files
+.env
+.env.*
+*.pem
+*.key
+
+# Frontend directory (deployed independently on Vercel)
+web
+
+# Test suites and development benchmarks
+tests
+benchmarks/results/*
+!benchmarks/results/.gitkeep
+
+# IDE and OS artifacts
+.idea
+.vscode
+.DS_Store
+*.swp
+*.swo

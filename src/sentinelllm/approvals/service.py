@@ -3,6 +3,7 @@
 import threading
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import uuid4
 
 from sentinelllm.approvals.models import ApprovalRequest, ApprovalStatus
@@ -39,7 +40,7 @@ class ApprovalService:
 
     def __init__(
         self,
-        store: InMemoryApprovalStore | None = None,
+        store: Any | None = None,
         clock: Callable[[], datetime] | None = None,
         default_ttl_seconds: int = 300,
         required_approval_permission: str = "approvals:manage",
@@ -252,7 +253,53 @@ class ApprovalService:
                 )
                 return False, REASON_DENY_MISSING_IDENTITY, fail_event
 
-            # 2. Record lookup
+            # Fast path: delegate to atomic_consume if supported by the store
+            if hasattr(self.store, "atomic_consume"):
+                success, reason_code, record = self.store.atomic_consume(
+                    approval_id=approval_id,
+                    principal_id=principal.principal_id,
+                    tool_name=tool_name,
+                    action_name=action_name,
+                    argument_hash=argument_hash,
+                    policy_version=policy_version,
+                    now=now,
+                )
+                event_req_id = record.request_id if record is not None else req_id
+                pol_ver = record.policy_version if record is not None else None
+
+                if success:
+                    consumed_event = AuditEvent(
+                        request_id=event_req_id,
+                        event_type="approval.consumed",
+                        component=self.component_name,
+                        decision=Decision.ALLOW,
+                        policy_version=pol_ver,
+                        metadata={
+                            "approval_id": approval_id,
+                            "principal_id": principal.principal_id,
+                            "status": ApprovalStatus.CONSUMED.value,
+                        },
+                    )
+                    return True, "APPROVAL_CONSUMED", consumed_event
+
+                event_type = "approval.failed"
+                if reason_code == REASON_DENY_APPROVAL_EXPIRED:
+                    event_type = "approval.expired"
+
+                fail_event = AuditEvent(
+                    request_id=event_req_id,
+                    event_type=event_type,
+                    component=self.component_name,
+                    decision=Decision.BLOCK,
+                    policy_version=pol_ver,
+                    metadata={
+                        "approval_id": approval_id,
+                        "reason_code": reason_code,
+                    },
+                )
+                return False, reason_code, fail_event
+
+            # 2. Record lookup (fallback for non-atomic custom stores)
             record = self.store.get(approval_id)
             if record is None:
                 fail_event = AuditEvent(

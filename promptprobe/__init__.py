@@ -18,6 +18,13 @@ from promptprobe.dataset import (
     load_dataset,
     load_scenario_dataset,
 )
+from promptprobe.hybrid import HybridBenchmarkRunner
+from promptprobe.hybrid_models import (
+    HybridBenchmarkReport,
+    HybridCaseResult,
+    HybridMetrics,
+    ModelExecutionStatus,
+)
 from promptprobe.metrics import compute_confusion_matrix, compute_enforcement_metrics
 from promptprobe.models import (
     BenchmarkReport,
@@ -41,7 +48,7 @@ from promptprobe.scenario_models import (
 )
 from promptprobe.scenario_runner import ScenarioRunner
 
-__version__: Final[str] = "0.1.0.dev0"
+__version__: Final[str] = "1.0.0rc1"
 
 __all__: Final[list[str]] = [
     "BASELINE_HEURISTIC",
@@ -54,6 +61,11 @@ __all__: Final[list[str]] = [
     "EnforcementMetrics",
     "EvaluationCase",
     "EvaluationCategory",
+    "HybridBenchmarkReport",
+    "HybridBenchmarkRunner",
+    "HybridCaseResult",
+    "HybridMetrics",
+    "ModelExecutionStatus",
     "ScenarioBenchmarkReport",
     "ScenarioDatasetContainer",
     "ScenarioMetrics",

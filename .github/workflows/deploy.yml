@@ -1,0 +1,376 @@
+name: Deploy Pipeline
+
+# ==============================================================================
+# SentinelLLM Production & Staging Deployment Workflow
+# ==============================================================================
+# Invariants:
+# 1. Fail-Closed Production Gate: Production deployment requires explicit manual
+#    selection via workflow_dispatch AND typing confirm_production="DEPLOY-PROD".
+#    Tag pushes (including release tags) NEVER automatically deploy to production.
+# 2. Release-Candidate Isolation: Tags containing 'rc', 'beta', or 'alpha' route
+#    strictly to staging; they cannot touch production under any condition.
+# 3. Environment & Secret Separation: Staging and production execute in separate jobs
+#    bound to distinct GitHub Protected Environments ('staging', 'production') with
+#    isolated secrets and variables.
+# 4. Immutable OCI Tagging: Container images are tagged with git commit SHA and semver,
+#    never mutable 'latest' tags.
+# 5. Phased Sequence:
+#    Step 1: Container packaging & registry push (GHCR)
+#    Step 2: Preflight target validation & safety gatekeeper
+#    Step 3: Standalone database migration upgrade (Alembic)
+#    Step 4: Rolling zero-downtime backend deployment (Fly.io / Cloud Run)
+#    Step 5: Frontend deployment (Vercel)
+#    Step 6: Automated post-deployment smoke verification
+# ==============================================================================
+
+'on':
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: "Target deployment environment ('staging' or 'production')"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+      confirm_production:
+        description: "Safety token: Type 'DEPLOY-PROD' to confirm production promotion"
+        required: false
+        default: ""
+        type: string
+      run_smoke_tests:
+        description: "Execute automated post-deployment smoke suite"
+        required: true
+        default: true
+        type: boolean
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-rc*"
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy-${{ github.ref }}-${{ inputs.target_environment || 'push-event' }}
+  cancel-in-progress: false
+
+jobs:
+  # ----------------------------------------------------------------------------
+  # Job 1: Build & Publish Immutable Container Image
+  # ----------------------------------------------------------------------------
+  build-and-push-image:
+    name: Package & Push Backend OCI Container
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      image_uri: ${{ steps.meta.outputs.tags }}
+      image_tag: ${{ steps.vars.outputs.tag }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Compute immutable image tag
+        id: vars
+        run: |
+          TAG="${{ github.sha }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for container image
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/backend
+          tags: |
+            type=sha,format=long
+            type=semver,pattern={{version}}
+
+      - name: Build and push container image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ----------------------------------------------------------------------------
+  # Job 2: Validate Target & Enforce Safety Guardrails
+  # ----------------------------------------------------------------------------
+  validate-target:
+    name: Validate Target & Enforce Safety Guardrails
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      target_env: ${{ steps.guard.outputs.target_env }}
+      is_staging: ${{ steps.guard.outputs.is_staging }}
+      is_production: ${{ steps.guard.outputs.is_production }}
+
+    steps:
+      - name: Evaluate deployment conditions fail-closed
+        id: guard
+        run: |
+          EVENT="${{ github.event_name }}"
+          REF="${{ github.ref_name }}"
+          TARGET="${{ inputs.target_environment }}"
+          CONFIRM="${{ inputs.confirm_production }}"
+
+          echo "Deployment event: $EVENT, ref: $REF, target: $TARGET"
+
+          # 1. Manual trigger (workflow_dispatch)
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            if [ "$TARGET" = "production" ]; then
+              if [ "$CONFIRM" != "DEPLOY-PROD" ]; then
+                echo "::error::Production deployment rejected! confirm_production must be exactly 'DEPLOY-PROD' (got '$CONFIRM')."
+                exit 1
+              fi
+              echo "Production target explicitly selected and confirmed."
+              echo "target_env=production" >> "$GITHUB_OUTPUT"
+              echo "is_staging=false" >> "$GITHUB_OUTPUT"
+              echo "is_production=true" >> "$GITHUB_OUTPUT"
+            elif [ "$TARGET" = "staging" ]; then
+              echo "Staging target explicitly selected."
+              echo "target_env=staging" >> "$GITHUB_OUTPUT"
+              echo "is_staging=true" >> "$GITHUB_OUTPUT"
+              echo "is_production=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "::error::Invalid target_environment '$TARGET'. Must be 'staging' or 'production'."
+              exit 1
+            fi
+
+          # 2. Tag push event
+          elif [ "$EVENT" = "push" ]; then
+            # Release candidate tag: auto-deploys to staging only
+            if echo "$REF" | grep -qiE "rc|beta|alpha|dev|preview"; then
+              echo "Release candidate tag '$REF' detected: routing deployment strictly to 'staging'."
+              echo "target_env=staging" >> "$GITHUB_OUTPUT"
+              echo "is_staging=true" >> "$GITHUB_OUTPUT"
+              echo "is_production=false" >> "$GITHUB_OUTPUT"
+            else
+              # Final release tag: builds image, but requires manual workflow_dispatch for production promotion
+              echo "NOTICE: Final release tag '$REF' pushed. Container image was built and published."
+              echo "Automatic production deployment from git push is disabled fail-closed."
+              echo "To deploy to production, manually trigger workflow_dispatch with confirm_production='DEPLOY-PROD'."
+              echo "target_env=none" >> "$GITHUB_OUTPUT"
+              echo "is_staging=false" >> "$GITHUB_OUTPUT"
+              echo "is_production=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "::error::Unsupported deployment trigger event '$EVENT'."
+            exit 1
+          fi
+
+  # ----------------------------------------------------------------------------
+  # Job 3: Staging Deployment Pipeline
+  # ----------------------------------------------------------------------------
+  deploy-staging:
+    name: Deploy to Staging Environment
+    needs: [build-and-push-image, validate-target]
+    if: needs.validate-target.outputs.is_staging == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: staging
+      url: ${{ vars.BACKEND_API_URL }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install database migration requirements
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[postgres]"
+
+      - name: Execute Alembic migration upgrade to HEAD (Staging)
+        env:
+          SENTINELLLM_ENV: staging
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python scripts/migrate.py upgrade head
+
+      - name: Deploy container to Fly.io (Staging)
+        if: vars.CONTAINER_PROVIDER == 'flyio'
+        uses: superfly/flyctl-actions/setup-flyctl@master
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          IMAGE_URI="ghcr.io/${{ github.repository }}/backend:${{ github.sha }}"
+          flyctl deploy --image "$IMAGE_URI" --app ${{ vars.FLY_APP_NAME }}
+
+      - name: Deploy container to Google Cloud Run (Staging)
+        if: vars.CONTAINER_PROVIDER == 'cloudrun'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set Cloud Run image (Staging)
+        if: vars.CONTAINER_PROVIDER == 'cloudrun'
+        run: |
+          IMAGE_URI="ghcr.io/${{ github.repository }}/backend:${{ github.sha }}"
+          gcloud run deploy ${{ vars.GCP_SERVICE_NAME }} \
+            --image "$IMAGE_URI" \
+            --region ${{ vars.GCP_REGION }} \
+            --platform managed
+
+      - name: Poll deployment readiness probe (/readyz)
+        run: |
+          TARGET_URL="${{ vars.BACKEND_API_URL }}/readyz"
+          echo "Verifying staging readiness at $TARGET_URL..."
+          for i in {1..20}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$TARGET_URL" || true)
+            if [ "$STATUS" -eq 200 ]; then
+              echo "Staging backend verified ready (HTTP 200)."
+              exit 0
+            fi
+            echo "Waiting for staging service readiness... ($i/20, HTTP $STATUS)"
+            sleep 6
+          done
+          echo "ERROR: Staging backend readiness check timed out."
+          exit 1
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Deploy Frontend to Vercel (Staging Preview)
+        working-directory: web
+        run: |
+          vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+          vercel build --token=${{ secrets.VERCEL_TOKEN }}
+          vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Execute Automated Staging Smoke Verification
+        if: inputs.run_smoke_tests != false
+        env:
+          SENTINELLLM_API_URL: ${{ vars.BACKEND_API_URL }}
+          SENTINELLLM_ADMIN_KEY: ${{ secrets.SENTINELLLM_ADMIN_KEY }}
+          SENTINELLLM_GUEST_KEY: ${{ secrets.SENTINELLLM_GUEST_KEY }}
+          STAGING_MODE: "true"
+        run: |
+          python scripts/smoke_test.py --api-url "$SENTINELLLM_API_URL"
+
+  # ----------------------------------------------------------------------------
+  # Job 4: Production Deployment Pipeline (Protected Environment)
+  # ----------------------------------------------------------------------------
+  deploy-production:
+    name: Deploy to Production Environment (Protected)
+    needs: [build-and-push-image, validate-target]
+    if: needs.validate-target.outputs.is_production == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: ${{ vars.BACKEND_API_URL }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install database migration requirements
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[postgres]"
+
+      - name: Execute Alembic migration upgrade to HEAD (Production)
+        env:
+          SENTINELLLM_ENV: production
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python scripts/migrate.py upgrade head
+
+      - name: Deploy container to Fly.io (Production)
+        if: vars.CONTAINER_PROVIDER == 'flyio'
+        uses: superfly/flyctl-actions/setup-flyctl@master
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          IMAGE_URI="ghcr.io/${{ github.repository }}/backend:${{ github.sha }}"
+          flyctl deploy --image "$IMAGE_URI" --app ${{ vars.FLY_APP_NAME }}
+
+      - name: Deploy container to Google Cloud Run (Production)
+        if: vars.CONTAINER_PROVIDER == 'cloudrun'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set Cloud Run image (Production)
+        if: vars.CONTAINER_PROVIDER == 'cloudrun'
+        run: |
+          IMAGE_URI="ghcr.io/${{ github.repository }}/backend:${{ github.sha }}"
+          gcloud run deploy ${{ vars.GCP_SERVICE_NAME }} \
+            --image "$IMAGE_URI" \
+            --region ${{ vars.GCP_REGION }} \
+            --platform managed
+
+      - name: Poll deployment readiness probe (/readyz)
+        run: |
+          TARGET_URL="${{ vars.BACKEND_API_URL }}/readyz"
+          echo "Verifying production readiness at $TARGET_URL..."
+          for i in {1..20}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$TARGET_URL" || true)
+            if [ "$STATUS" -eq 200 ]; then
+              echo "Production backend verified ready (HTTP 200)."
+              exit 0
+            fi
+            echo "Waiting for production service readiness... ($i/20, HTTP $STATUS)"
+            sleep 6
+          done
+          echo "ERROR: Production backend readiness check timed out."
+          exit 1
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Deploy Frontend to Vercel (Production)
+        working-directory: web
+        run: |
+          vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+          vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+          vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Execute Automated Production Smoke Verification
+        if: inputs.run_smoke_tests != false
+        env:
+          SENTINELLLM_API_URL: ${{ vars.BACKEND_API_URL }}
+          SENTINELLLM_ADMIN_KEY: ${{ secrets.SENTINELLLM_ADMIN_KEY }}
+          SENTINELLLM_GUEST_KEY: ${{ secrets.SENTINELLLM_GUEST_KEY }}
+          STAGING_MODE: "false"
+        run: |
+          python scripts/smoke_test.py --api-url "$SENTINELLLM_API_URL"

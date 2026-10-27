@@ -86,6 +86,7 @@ from sentinelllm.contracts.decision import SecurityFinding, Severity
 from sentinelllm.contracts.messages import SecurityContent
 from sentinelllm.detectors.base import BaseDetector
 
+
 class CustomRegexDetector(BaseDetector):
     @property
     def detector_id(self) -> str:

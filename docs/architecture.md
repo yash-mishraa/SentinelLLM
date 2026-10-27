@@ -1,61 +1,191 @@
 # SentinelLLM System Architecture & Design Specification
 
-> **Architectural Proposal Notice:** This document specifies the planned technical architecture, component boundaries, and security contracts for SentinelLLM and its companion harness PromptProbe. As of Milestone 1 (Foundation), this describes proposed target system capabilities and does not represent completed implementation.
+> **Implementation Status:** Verified across Phases 1 through 6. All core security contracts, heuristic detectors, policy decision and enforcement points, concurrency-safe PostgreSQL persistence stores, FastAPI REST gateway, Next.js 15 operations dashboard, multi-stage Docker packaging, and PromptProbe evaluation suites are fully implemented and verified.
 
 ---
 
 ## 1. High-Level Architectural Vision
 
-SentinelLLM is designed as a defense-in-depth, runtime security framework for applications built on large language models (LLMs) and autonomous AI agents. Rather than relying solely on probabilistic content filtering or prompt-level admonitions, SentinelLLM decouples **probabilistic signal detection** from **deterministic action-level policy enforcement**.
+SentinelLLM is designed as a defense-in-depth runtime security framework for applications built on large language models (LLMs) and autonomous AI agents. Rather than relying solely on probabilistic content filtering or prompt-level admonitions, SentinelLLM decouples **probabilistic signal detection** from **deterministic action-level policy enforcement**.
 
 ```mermaid
 flowchart TD
-    subgraph ClientLayer["Client & Untrusted Interfaces"]
-        UserReq["User Prompt / Request"]
-        ExternalData["External Data (RAG, Web, APIs)"]
+    subgraph Client["Client Tier"]
+        Browser["End-User Browser"]
     end
 
-    subgraph SentinelRuntime["SentinelLLM Runtime Security Engine"]
-        GW["1. Gateway & Request Lifecycle Interceptor"]
-        TP["2. Trust Boundary & Provenance Engine"]
-        DET["3. Multi-Signal Security Detectors"]
-        POL["4. Policy Decision Point (PDP)"]
-        LLM["Foundation Model Execution"]
-        OV["5. Output Validation & Secret Redaction"]
-        PEP["6. Tool Authorization & Execution Proxy (PEP)"]
-        AUD["7. Structured Audit & Telemetry Logger"]
+    subgraph Frontend["Frontend Tier (Vercel)"]
+        Next["Next.js 15 Web Dashboard"]
+        BFF["Server-Side BFF Proxy (/api/backend/*)"]
+        SessionStore["Encrypted Session Cookies (HMAC-SHA256)"]
+        Next --> BFF
+        BFF --> SessionStore
     end
 
-    subgraph ToolsAndEnvironment["External Environment"]
-        AgentTools["Target Tools & System APIs"]
+    subgraph BackendGateway["FastAPI Gateway Tier (Container)"]
+        FastAPI["FastAPI REST Application (:8000)"]
+        AuthMid["API Key Auth (SHA-256 Verifier)"]
+        RateLimiter["Distributed Rate Limiter (SqlRateLimiter)"]
+        LivenessProbe["/healthz (Process Liveness)"]
+        ReadinessProbe["/readyz (Database Readiness)"]
+        FastAPI --> AuthMid
+        FastAPI --> RateLimiter
+        FastAPI --> LivenessProbe
+        FastAPI --> ReadinessProbe
     end
 
-    subgraph EvalHarness["PromptProbe Evaluation Framework (Companion)"]
-        PP_Runner["8. Attack Harness & Payload Injector"]
-        PP_Bench["9. Benchmark Datasets & Metrics Engine"]
+    subgraph SecurityCore["SentinelLLM Security Engine"]
+        Orchestrator["Lifecycle Orchestrator"]
+        Provenance["Provenance & Trust Engine"]
+        Detectors["Multi-Signal Detectors (Heuristic / Extraction / Canary)"]
+        PDP["Policy Decision Point (PDP)"]
+        PEP["Policy Enforcement Point (PEP)"]
+        Approvals["Approval Service (Single-Use Token Validation)"]
+        Tools["Tool Registry & Execution Handlers"]
+
+        Orchestrator --> Provenance
+        Provenance --> Detectors
+        Detectors --> PDP
+        PDP --> PEP
+        PEP --> Approvals
+        PEP --> Tools
     end
 
-    UserReq --> GW
-    ExternalData --> GW
-    GW --> TP
-    TP --> DET
-    TP --> POL
-    DET -.->|"Detection Signals (Probabilistic)"| POL
-    POL -->|"Permit / Deny / Sanitize"| LLM
-    LLM --> OV
-    LLM -.->|"Proposed Tool Call"| PEP
-    POL -->|"Action Policy"| PEP
-    PEP -->|"Authorized Execution"| AgentTools
-    AgentTools -->|"Untrusted Tool Output"| TP
-    OV -->|"Clean Response"| UserReq
+    subgraph Persistence["Durable Persistence (PostgreSQL 16 / SQLite)"]
+        DB["PostgreSQL (Neon / Cloud SQL)"]
+        AppStore["approval_requests (Row-Level Locking)"]
+        AuditStore["audit_events (Structured Telemetry)"]
+        RateStore["rate_limit_buckets (Sliding Window)"]
+        DB --- AppStore
+        DB --- AuditStore
+        DB --- RateStore
+    end
 
-    GW --> AUD
-    POL --> AUD
-    PEP --> AUD
+    subgraph ExternalLLM["LLM Integration (Optional)"]
+        Adapter["BaseLLMAdapter (OpenAI / Gemini / Fake)"]
+        Budget["Budget Tracker (Hard $0.20 Ceiling)"]
+        Adapter --- Budget
+    end
 
-    PP_Runner -.->|"Evaluates Defenses"| GW
-    PP_Bench --> PP_Runner
-    AUD -.->|"Audit Traces for Evaluation"| PP_Bench
+    Browser -->|"HTTPS"| Next
+    BFF -->|"mTLS / HTTPS + X-API-Key"| FastAPI
+    FastAPI --> SecurityCore
+    FastAPI --> DB
+    SecurityCore --> ExternalLLM
+```
+
+---
+
+## 2. Core Architectural Diagrams
+
+### 2.1 Trust Boundary and Request Authorization Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User / Agent Caller
+    participant GW as Ingestion Gateway
+    participant Prov as Provenance Engine
+    participant Det as Multi-Signal Detectors
+    participant PDP as Policy Decision Point
+    participant PEP as Policy Enforcement Point
+    participant AppSvc as Approval Service (DB)
+    participant Backing as Backing Tool / API
+
+    User->>GW: Inbound Request (Prompt / RAG Chunk / Tool Output)
+    GW->>Prov: Assign Content Provenance & Trust Tier
+    Note over Prov: USER_INPUT vs UNTRUSTED_CONTEXT vs SYSTEM
+    Prov->>Det: Scan Text for Adversarial Markers
+    Det-->>PDP: Emitted SecurityFindings (Probabilistic)
+
+    alt Inbound Injection / Canary Leak Detected
+        PDP-->>User: BLOCK (DENY_HIGH_RISK_FINDINGS) - Zero tokens dispatched
+    else Clean Inbound Context
+        PDP->>User: Allow Proceed to LLM
+    end
+
+    opt LLM Proposes Action (e.g. export_customer_records)
+        User->>PEP: Proposed Tool Invocation + Arguments
+        PEP->>PDP: Evaluate Action Capability against AuthenticatedPrincipal
+
+        alt Unauthorized Role / Insufficient Permission
+            PDP-->>PEP: DENY (DENY_INSUFFICIENT_PERMISSION)
+            PEP-->>User: Execution Denied Out-of-Band
+        else Sensitive Action Requiring Review
+            PDP-->>PEP: REVIEW (REVIEW_APPROVAL_REQUIRED)
+            PEP->>AppSvc: Register Approval Request (Stores SHA-256 Argument Hash)
+            AppSvc-->>PEP: Created Approval ID
+            PEP-->>User: PENDING_APPROVAL (Execution Suspended)
+        else Pre-Approved or Low-Risk Action
+            PDP-->>PEP: ALLOW
+            PEP->>Backing: Execute Backing Tool Handler
+            Backing-->>PEP: Tool Execution Output
+            PEP-->>User: Validated Result
+        end
+    end
+```
+
+### 2.2 Human-in-the-Loop Approval Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING: Action Held by PDP (REVIEW_APPROVAL_REQUIRED)
+
+    PENDING --> EXPIRED: TTL Elapsed without Review (Default: 300s)
+    PENDING --> REJECTED: Supervisor Explicitly Rejects Action
+    PENDING --> APPROVED: Supervisor Reviews & Approves (Separation of Duties Enforced)
+
+    APPROVED --> EXPIRED: TTL Elapsed Before Execution
+    APPROVED --> CONSUMED: PEP Invocation Matches SHA-256 Argument Hash (Atomic Lock)
+    APPROVED --> REJECTED: Argument Tampering Detected (Hash Mismatch)
+
+    CONSUMED --> [*]: Execution Succeeded (Single-Use Token Cannot be Replayed)
+    EXPIRED --> [*]: Request Defunct
+    REJECTED --> [*]: Action Permanently Terminated
+```
+
+### 2.3 CI/CD & Database Migration Lifecycle
+
+```mermaid
+flowchart TD
+    subgraph Trigger["1. Triggers & Quality Gates"]
+        PR["Pull Request to main"]
+        Tag["Release Tag (v1.0.0) or Workflow Dispatch"]
+        CI["CI Workflow (ci.yml)"]
+        PR --> CI
+    end
+
+    subgraph CIJobs["2. Continuous Integration Matrix"]
+        BackendCheck["Backend Quality (Ruff, Mypy Strict, Pytest >=80%)"]
+        FrontendCheck["Frontend Quality (TypeScript, Lint, Vitest, Bundle Scan)"]
+        PostgresCheck["PostgreSQL 16 Service Container (Migrations, Row Locks, Rollback)"]
+        DemoCheck["Deterministic 6-Stage Demo Walkthrough"]
+        PromptProbeCheck["PromptProbe (23 Single Cases + 10 Scenarios)"]
+        DockerCheck["Multi-Stage Docker Build & Healthcheck Verification"]
+
+        CI --> BackendCheck
+        CI --> FrontendCheck
+        CI --> PostgresCheck
+        CI --> DemoCheck
+        CI --> PromptProbeCheck
+        CI --> DockerCheck
+    end
+
+    subgraph DeployPipeline["3. Deployment Pipeline (deploy.yml)"]
+        Tag --> BuildImg["build-and-push-image (Tagged with Immutable Git SHA)"]
+        BuildImg --> MigrateDB["migrate-database (Standalone Alembic Upgrade Head)"]
+        MigrateDB --> DeployBack["deploy-backend (Rolling Container Restart)"]
+        DeployBack --> ReadinessCheck["Poll /readyz Probe (Up to 120s for DB Cold Starts)"]
+        ReadinessCheck --> DeployFront["deploy-frontend (Vercel Production Deployment)"]
+        DeployFront --> SmokeTest["post-deploy-smoke-test (Automated 9-Point Verification)"]
+    end
+
+    subgraph CircuitBreaker["4. Circuit Breaking & Promotion"]
+        SmokeTest -->|"Pass (9/9)"| Live["Traffic Promoted to Production"]
+        MigrateDB -->|"Fail"| Abort["Halt Deployment (Existing Containers Untouched)"]
+        ReadinessCheck -->|"Fail (Timeout)"| Rollback["Alert & Abort Deployment"]
+        SmokeTest -->|"Fail"| HaltPromotion["Block Traffic Promotion"]
+    end
 ```
 
 ---
@@ -228,6 +358,83 @@ Milestone 9 established reproducible evaluation benchmarks and release readiness
 - **Empirical Baseline Isolation:** Verified via `no_detection_baseline` that zero unauthorized tool executions occur even when content detectors are completely disabled.
 - **Deterministic Reporting:** Pinned dataset versions, policy configurations, and random seeds, ensuring evaluation results are strictly reproducible.
 
+### 4.12 Portfolio Demonstration (Milestone 10)
+Milestone 10 established an end-to-end deterministic demonstration CLI (`python -m sentinelllm.demo`, `make demo`) showcasing:
+1. Direct prompt injection detection and blocking at gateway.
+2. Quarantining poisoned RAG chunks to prevent indirect injection.
+3. Policy enforcement blocking unauthorized tool actions.
+4. Human approval review workflow on high-impact tools.
+5. Supervisor authorization with atomic token consumption.
+6. Rejection of tampered arguments and token replay attempts.
+
+### 4.13 Database Persistence & Distributed Approval Store (Phase 1)
+Phase 1 introduced durable database persistence and multi-worker concurrency safety:
+- **`SqlApprovalStore` & `PostgresApprovalStore`:** Database-backed approval stores supporting multi-worker Uvicorn/Gunicorn clusters.
+  - Concurrency Safety: Applies `SELECT ... FOR UPDATE` row-level locking on PostgreSQL/standard SQL engines.
+  - Defense-in-Depth Atomicity: Enforces atomic conditional updates (`UPDATE approval_requests SET status = 'CONSUMED', consumed_at = :now WHERE approval_id = :id AND status = 'APPROVED'`) to guarantee single-use test-and-set semantics across all SQL dialects (including SQLite).
+- **`SqlAuditStore`:** Durable, queryable repository for structured `AuditEvent` records. Preserves independent transaction boundaries and enforces recursive sensitive-key sanitization (`_scan_keys_recursively`).
+- **`DatabaseConfig`:** Centralized connection configuration supporting environment overrides (`SENTINELLLM_DATABASE_URL`), connection pooling, fail-closed validation in production, and safe URL masking to prevent credential leakage.
+- **Alembic Migrations:** Version-controlled database schema management (`alembic/versions/001_initial_persistence_schema.py`) supporting forward upgrades and clean rollbacks for `approval_requests`, `audit_events`, `policy_versions`, and `benchmark_runs`.
+
+### 4.14 FastAPI REST Gateway (Phase 2)
+Phase 2 exposed the API-independent security engine through an enterprise-grade, versioned HTTP REST interface:
+- **Application Factory & Architecture:** Modular structure under `sentinelllm.api` with `create_app()` factory, clean routing separation, dependency injection, and asynchronous lifespan management.
+- **Versioned API Routes (`/api/v1`):**
+  - `GET /api/v1/health` & `GET /api/v1/ready`: Liveness and dependency readiness probes (DB connectivity and PDP state).
+  - `POST /api/v1/inspect`: Content scanning via `LifecycleOrchestrator`, returning categorized findings and severity levels.
+  - `POST /api/v1/authorize`: Proposed tool action evaluation via `PolicyDecisionPoint`, enforcing deterministic allow/deny/review logic and blocking identity spoofing.
+  - `POST /api/v1/execute`: Safe proxy execution via `PolicyEnforcementPoint`, validating permissions, security findings, and single-use approval tokens.
+  - `POST /api/v1/approvals`: Approval request registration and review queue retrieval.
+  - `POST /api/v1/approvals/{id}/approve` & `POST /api/v1/approvals/{id}/reject`: Human supervisor review actions with strict self-approval prevention.
+  - `GET /api/v1/audit`: Structured telemetry log queries with pagination and field-level filtering.
+  - `GET /api/v1/benchmark/summary` & `POST /api/v1/benchmark/run`: Adversarial benchmark inspection and on-demand execution.
+- **Authentication & RBAC:**
+  - Header-based API key verification (`X-API-Key`) hashed using SHA-256 and matched via constant-time comparison (`secrets.compare_digest`).
+  - Principal identity bound securely to the key; request bodies declaring conflicting principal identities are rejected with `403 Forbidden`.
+  - Granular permissions (`inspect:run`, `authorize:run`, `approvals:manage`, `audit:read`, etc.) and role checks (`analyst`, `compliance`, `admin`).
+- **Abuse Prevention & Multi-Worker Rate Limiting:**
+  - `SqlRateLimiter`: Multi-worker distributed rate limiter using the `rate_limit_buckets` table with database-level concurrency locking and automatic window expiry.
+  - `InMemoryRateLimiter`: Zero-dependency thread-safe fallback for unit tests and single-process deployments.
+  - Emits standard `429 Too Many Requests` responses with `Retry-After` headers when limits are exceeded.
+- **Request Size Limiting & Error Sanitization:**
+  - `ContentLengthLimitMiddleware` enforcing a default 1MB maximum payload bound, returning `413 Payload Too Large`.
+  - Sanitized validation exception handlers (422) and generic internal server error handlers (500) preventing stack trace or sensitive data leakage.
+  - Configurable restrictive CORS middleware rejecting wildcard `*` with credentials.
+
+### 4.15 Provider-Neutral LLM Adapters & Budget Guardrails (Phase 3)
+Phase 3 introduced a lightweight, provider-neutral LLM adapter subsystem under `sentinelllm.adapters`:
+- **Abstract Architecture (`BaseLLMAdapter`):**
+  - Typed inputs and outputs: `LLMConfig` and `LLMResponse`.
+  - Explicit error hierarchy: `LLMAdapterError`, `AuthenticationError`, `RateLimitError`, `TimeoutError`, `ProviderUnavailableError`, `SafetyOptInRequiredError`, `BudgetExceededError`.
+  - Zero silent fallbacks: Provider errors are surfaced cleanly without masquerading as benign refusals.
+- **Fail-Closed Budget Guardrails (`RunBudget`, `BudgetTracker`):**
+  - Strict financial caps: Default ceiling of $0.20 with a hard maximum boundary of $1.00.
+  - Multi-dimensional limits: Max requests (default 30), max total tokens (default 25,000), and max wall-clock duration (default 120s).
+  - Preflight estimation: Computes projected prompt and completion token costs *before* issuing network requests, halting execution early if projected cost breaches budget.
+- **Deterministic Offline Simulation (`FakeLLMAdapter`):**
+  - Zero external network dependencies for CI, local development, and reproducible regression tests.
+  - Granular simulation modes: `standard`, `refusal`, `vulnerable`, `timeout`, `rate_limit`, `auth_error`, `provider_error`.
+- **Live Provider Integration (`OpenAICompatibleAdapter`):**
+  - Minimal dependency footprint using `httpx` with explicit timeouts and bounded response body buffers.
+  - Supports OpenAI (`gpt-4o-mini`, `gpt-4o`) and OpenAI-compatible local/remote servers (Ollama, vLLM, Groq).
+  - Secret protection: API keys resolved strictly from environment variables at execution time; keys are never stored on adapter instances, logged, or included in response metadata.
+  - Explicit opt-in safety guard: Network calls are blocked unless `config.live_opt_in=True` (or `--live-opt-in` CLI flag).
+
+### 4.16 PromptProbe Hybrid Evaluation (Phase 3)
+Extended PromptProbe to benchmark full-stack interaction across the SentinelLLM gateway and LLM adapters:
+- **Dual-Layer Evaluation:**
+  - Layer 1 (Gateway): Intercepts untrusted content. If malicious injection is detected, the prompt is quarantined before model dispatch, saving tokens and financial cost.
+  - Layer 2 (Model): Dispatches permitted benign prompts to the configured adapter, evaluating response latency, token consumption, and actual financial cost.
+- **Simulated Tool Execution Safety:**
+  - Evaluates action-level tool calls exclusively through the Policy Enforcement Point (PEP) with simulated tools.
+  - Live language models never execute un-intercepted real actions against backing systems.
+- **Separation of Metrics (`HybridMetrics`):**
+  - Content Gateway Metrics: True Positives (blocked attacks), False Negatives (leaked attacks), True Negatives (dispatched benign prompts), False Positives (false alarms), Precision, Recall, F1, Accuracy.
+  - Action Enforcement Metrics: Correctly enforced actions, unauthorized actions prevented.
+  - Model Telemetry: Tokens consumed, tokens saved by gateway quarantine, total USD cost, provider failures, budget exhaustion status.
+- **REST Gateway Capabilities Endpoint:**
+  - `GET /api/v1/benchmark/hybrid/summary`: Exposes supported providers, models, budget limits, and pricing rates to clients and dashboards.
+
 ---
 
 ## 5. Current Implementation vs. Planned Roadmap
@@ -246,3 +453,12 @@ Milestone 9 established reproducible evaluation benchmarks and release readiness
 | **Multi-Step Adversarial Scenarios** | Implemented (`ScenarioRunner`, `SecurityScenario`, 10 scenarios) | Milestone 7 (Done) |
 | **Security Audit & Boundary Hardening** | Implemented (Atomic approval locks, error redaction, universal containment) | Milestone 8 (Done) |
 | **Benchmark Triage & Release Candidate**| Implemented (Reproducibility verification, benchmark triage, docs release) | Milestone 9 (Done) |
+| **Portfolio Demonstration** | Implemented (`make demo`, 6-stage walkthrough) | Milestone 10 (Done) |
+| **Database Persistence & Store** | Implemented (SQLAlchemy 2.0, Alembic, SqlApprovalStore, SqlAuditStore) | Phase 1 (Done) |
+| **FastAPI REST Gateway** | Implemented (FastAPI, Uvicorn, API Keys, Rate Limiter, /api/v1 endpoints) | Phase 2 (Done) |
+| **Live LLM Adapters & Hybrid Eval** | Implemented (`BaseLLMAdapter`, `FakeLLMAdapter`, `OpenAICompatibleAdapter`, `promptprobe hybrid`) | Phase 3 (Done) |
+| **Next.js Operations Dashboard** | Implemented (Next.js 15, Tailwind, shadcn/ui, BFF proxy, role sessions) | Phase 4 (Done) |
+| **Pre-Deployment Security Hardening**| Implemented (Fail-closed session secrets, CSRF defenses, bundle scanners) | Phase 4.1 (Done) |
+| **Production Packaging & CI/CD** | Implemented (Multi-stage Dockerfile, Alembic CLI runner, GitHub Actions CI/Deploy) | Phase 5 (Done) |
+| **Deployment & Container Audit** | Implemented (Non-root container verification, PostgreSQL 16 tests, smoke suite) | Phase 5.1 (Done) |
+| **Portfolio Assets & Release Polish**| Implemented (`README.md`, `PORTFOLIO.md`, complete architecture diagrams, release gates) | Phase 6 (Done) |

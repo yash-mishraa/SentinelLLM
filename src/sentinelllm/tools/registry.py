@@ -37,6 +37,10 @@ class ToolRegistry:
         """Look up tool specification by tool name."""
         return self._specs.get(tool_name)
 
+    def list_specs(self) -> list[ToolSpec]:
+        """Return all registered tool specifications."""
+        return list(self._specs.values())
+
     def execute(self, tool_name: str, args: BaseModel) -> str:
         """Execute a tool handler with validated arguments."""
         handler = self._handlers.get(tool_name)

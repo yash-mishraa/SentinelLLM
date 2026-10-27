@@ -14,8 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -47,6 +47,7 @@ cover/
 dmypy.json
 .pyre/
 .pytype/
+*.tsbuildinfo
 
 # Environments
 .env
@@ -66,6 +67,12 @@ venv.bak/
 *.swo
 *~
 .DS_Store
+
+# Local SQLite databases
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
 
 # Benchmark execution outputs (keep .gitkeep and test fixtures)
 benchmarks/results/*
