@@ -47,10 +47,12 @@ export default function AuditPage() {
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
       });
-      setEvents(resp.events);
-      setTotalCount(resp.count);
+      setEvents(Array.isArray(resp?.events) ? resp.events : []);
+      setTotalCount(typeof resp?.count === "number" ? resp.count : 0);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
+      setEvents([]);
+      setTotalCount(0);
     } finally {
       setIsLoading(false);
     }
@@ -165,7 +167,7 @@ export default function AuditPage() {
 
       {/* Audit Table */}
       <Card className="p-0 overflow-hidden">
-        {events.length === 0 ? (
+        {(!events || events.length === 0) ? (
           <div className="p-8">
             <EmptyState
               icon={FileText}
@@ -187,11 +189,18 @@ export default function AuditPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
-                {events.map((event) => (
-                  <tr key={event.event_id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3 px-4 text-slate-400 whitespace-nowrap">
-                      {new Date(event.timestamp).toLocaleString()}
-                    </td>
+                {(events || []).map((event) => {
+                  let formattedDate = "—";
+                  try {
+                    if (event.timestamp) formattedDate = new Date(event.timestamp).toLocaleString();
+                  } catch {
+                    // Ignore date format error
+                  }
+                  return (
+                    <tr key={event.event_id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3 px-4 text-slate-400 whitespace-nowrap">
+                        {formattedDate}
+                      </td>
                     <td className="py-3 px-4 font-semibold text-slate-200">
                       {event.event_type}
                     </td>
@@ -232,7 +241,8 @@ export default function AuditPage() {
                       </Button>
                     </td>
                   </tr>
-                ))}
+                );
+              })}
               </tbody>
             </table>
           </div>

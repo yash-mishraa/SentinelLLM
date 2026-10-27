@@ -298,17 +298,17 @@ export default function PlaygroundPage() {
                 {/* Analytical Findings Section */}
                 <div>
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 font-mono mb-2 flex items-center justify-between">
-                    <span>Detector Findings ({result.findings.length})</span>
+                    <span>Detector Findings ({(result.findings || []).length})</span>
                     <span className="text-[10px] text-slate-400">Purely Analytical Observations</span>
                   </h4>
 
-                  {result.findings.length === 0 ? (
+                  {(!result.findings || result.findings.length === 0) ? (
                     <div className="p-3 text-center text-xs text-slate-400 bg-slate-950/40 rounded border border-slate-800/80">
                       Zero suspicious patterns detected. Input conforms to benign traffic baselines.
                     </div>
                   ) : (
                     <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                      {result.findings.map((f, i) => (
+                      {(result.findings || []).map((f, i) => (
                         <div
                           key={i}
                           className="p-3 rounded bg-slate-950 border border-slate-800/80 text-xs space-y-1.5"

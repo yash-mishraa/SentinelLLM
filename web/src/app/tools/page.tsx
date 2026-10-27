@@ -37,13 +37,15 @@ export default function ToolsPage() {
     async function loadTools() {
       try {
         const catalog = await listTools();
-        setTools(catalog);
-        if (catalog.length > 0) {
-          setSelectedTool(catalog[0].tool_name);
-          updateDefaultArgs(catalog[0].tool_name);
+        const safeCatalog = Array.isArray(catalog) ? catalog : [];
+        setTools(safeCatalog);
+        if (safeCatalog.length > 0) {
+          setSelectedTool(safeCatalog[0].tool_name);
+          updateDefaultArgs(safeCatalog[0].tool_name);
         }
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : String(err));
+        setTools([]);
       }
     }
     loadTools();
@@ -69,7 +71,7 @@ export default function ToolsPage() {
     updateDefaultArgs(name);
   };
 
-  const currentSpec = tools.find((t) => t.tool_name === selectedTool);
+  const currentSpec = (tools || []).find((t) => t.tool_name === selectedTool);
 
   const handleAuthorize = async () => {
     if (!currentSpec) return;
@@ -150,10 +152,10 @@ export default function ToolsPage() {
       {/* Tool Catalog Selection */}
       <div className="space-y-2">
         <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 font-mono">
-          Registered Tool Catalog ({tools.length})
+          Registered Tool Catalog ({(tools || []).length})
         </label>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {tools.map((tool) => {
+          {(tools || []).map((tool) => {
             const isSelected = selectedTool === tool.tool_name;
             return (
               <button

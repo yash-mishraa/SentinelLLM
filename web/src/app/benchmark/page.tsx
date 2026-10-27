@@ -52,11 +52,12 @@ export default function BenchmarkPage() {
         getHybridBenchmarkSummary(),
         getBenchmarkHistory(10),
       ]);
-      setSummary(sum);
-      setHybridSummary(hSum);
-      setHistory(hist);
+      setSummary(sum || null);
+      setHybridSummary(hSum || null);
+      setHistory(Array.isArray(hist) ? hist : []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
+      setHistory([]);
     } finally {
       setIsLoading(false);
     }

@@ -41,7 +41,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     },
   });
 
-  const data = await response.json();
+  let data: any;
+  try {
+    data = await response.json();
+  } catch {
+    data = { error: `Server returned non-JSON response (HTTP ${response.status})` };
+  }
 
   if (!response.ok) {
     const message = data.detail || data.error || `HTTP ${response.status} Error`;

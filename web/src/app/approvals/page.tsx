@@ -48,9 +48,10 @@ export default function ApprovalsPage() {
     try {
       const statusParam = filterStatus === "ALL" ? undefined : filterStatus;
       const data = await listApprovals(statusParam);
-      setApprovals(data);
+      setApprovals(Array.isArray(data) ? data : []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
+      setApprovals([]);
     } finally {
       setIsLoading(false);
     }
@@ -186,7 +187,7 @@ export default function ApprovalsPage() {
       </div>
 
       {/* Approval List Cards */}
-      {approvals.length === 0 ? (
+      {(!approvals || approvals.length === 0) ? (
         <EmptyState
           icon={CheckSquare}
           title="No Approval Requests Found"
@@ -198,9 +199,19 @@ export default function ApprovalsPage() {
         />
       ) : (
         <div className="space-y-3">
-          {approvals.map((app) => {
+          {(approvals || []).map((app) => {
             const isSelf = session?.principalId === app.principal_id;
             const isPending = app.status === "PENDING";
+            let createdDate = "—";
+            let expiresTime = "—";
+            let reviewedTime = "—";
+            try {
+              if (app.created_at) createdDate = new Date(app.created_at).toLocaleString();
+              if (app.expires_at) expiresTime = new Date(app.expires_at).toLocaleTimeString();
+              if (app.reviewed_at) reviewedTime = new Date(app.reviewed_at).toLocaleTimeString();
+            } catch {
+              // Ignore invalid dates
+            }
 
             return (
               <Card key={app.approval_id} className="p-4 hover:border-slate-700/80 transition-all">
@@ -220,9 +231,9 @@ export default function ApprovalsPage() {
                         Requester: <strong className="text-slate-300">{app.principal_id}</strong>
                       </span>
                       <span>•</span>
-                      <span>Created: {new Date(app.created_at).toLocaleString()}</span>
+                      <span>Created: {createdDate}</span>
                       <span>•</span>
-                      <span>Expires: {new Date(app.expires_at).toLocaleTimeString()}</span>
+                      <span>Expires: {expiresTime}</span>
                     </div>
 
                     <div className="flex items-center gap-2 pt-1 text-[11px] font-mono text-slate-400">
@@ -248,7 +259,7 @@ export default function ApprovalsPage() {
                     {app.reviewed_by && (
                       <div className="text-[11px] text-slate-400 pt-0.5">
                         Reviewed by: <span className="font-mono text-indigo-300">{app.reviewed_by}</span> on{" "}
-                        {app.reviewed_at ? new Date(app.reviewed_at).toLocaleTimeString() : "—"}
+                        {reviewedTime}
                         {app.rejection_reason && (
                           <span className="text-rose-400 ml-2">({app.rejection_reason})</span>
                         )}
