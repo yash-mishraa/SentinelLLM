@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
+COPY promptprobe ./promptprobe
 
 # Build self wheel and compile binary dependencies (including PostgreSQL drivers)
 RUN pip install --no-cache-dir --upgrade pip build wheel && \
@@ -55,6 +56,7 @@ COPY --chown=sentinel:sentinel alembic.ini ./
 COPY --chown=sentinel:sentinel alembic ./alembic
 COPY --chown=sentinel:sentinel scripts ./scripts
 COPY --chown=sentinel:sentinel src ./src
+COPY --chown=sentinel:sentinel promptprobe ./promptprobe
 
 # Enforce non-root execution
 USER sentinel
@@ -62,6 +64,7 @@ USER sentinel
 # Container runtime defaults
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
     SENTINELLLM_ENV=production \
     PORT=8000 \
     WORKERS=2
