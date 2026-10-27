@@ -33,6 +33,25 @@ class PayloadTooLargeError(Exception):
     """Raised when streaming request body exceeds configured byte limit."""
 
 
+class SlashNormalizeMiddleware:
+    """Normalize duplicate forward slashes in incoming request paths."""
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope.get("type") in ("http", "websocket"):
+            if "path" in scope:
+                import re
+
+                scope["path"] = re.sub(r"/+", "/", scope["path"])
+            if "raw_path" in scope:
+                import re
+
+                scope["raw_path"] = re.sub(rb"/+", b"/", scope["raw_path"])
+        await self.app(scope, receive, send)
+
+
 class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
     """Rejects request bodies exceeding configured byte limits with 413 Payload Too Large.
 
@@ -136,7 +155,10 @@ def create_app(config: ApiConfig | None = None) -> FastAPI:
         lifespan=lifespan,
     )
 
-    # 1. Request Body Size Limit Middleware
+    # 1. Normalize duplicate forward slashes
+    app.add_middleware(SlashNormalizeMiddleware)
+
+    # 2. Request Body Size Limit Middleware
     app.add_middleware(
         RequestSizeLimitMiddleware,
         max_size_bytes=active_config.max_request_size_bytes,

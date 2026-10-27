@@ -85,8 +85,10 @@ async function handleProxy(
     }
   }
 
-  // 5. Construct target backend URL with query parameters
-  const targetUrl = new URL(`${BACKEND_URL}/api/v1/${pathStr}`);
+  // 5. Construct target backend URL with query parameters (normalize slashes)
+  const cleanBase = BACKEND_URL.replace(/\/+$/, "");
+  const cleanPath = pathStr.replace(/^\/+/, "");
+  const targetUrl = new URL(`${cleanBase}/api/v1/${cleanPath}`);
   request.nextUrl.searchParams.forEach((value, key) => {
     targetUrl.searchParams.append(key, value);
   });
