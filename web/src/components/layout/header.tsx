@@ -27,14 +27,16 @@ export function Header() {
     async function init() {
       try {
         const s = await getSession();
-        setSession(s);
+        if (s && s.role) {
+          setSession(s);
+        }
       } catch {
         // Fallback to guest
       }
 
       try {
         const h = await getHealth();
-        setBackendOnline(h.status === "ok");
+        setBackendOnline(Boolean(h && h.status === "ok"));
       } catch {
         setBackendOnline(false);
       }

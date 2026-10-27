@@ -59,14 +59,18 @@ export default function OverviewDashboard() {
           getHybridBenchmarkSummary(),
         ]);
 
-        if (ready.status === "fulfilled") setReadiness(ready.value);
-        if (approvals.status === "fulfilled") setPendingApprovals(approvals.value);
-        if (audits.status === "fulfilled") setRecentAudits(audits.value.events);
-        if (benchSum.status === "fulfilled") setBenchmarkSummary(benchSum.value);
-        if (benchHistory.status === "fulfilled" && benchHistory.value.length > 0) {
+        if (ready.status === "fulfilled" && ready.value) setReadiness(ready.value);
+        if (approvals.status === "fulfilled" && Array.isArray(approvals.value)) {
+          setPendingApprovals(approvals.value);
+        }
+        if (audits.status === "fulfilled" && audits.value && Array.isArray(audits.value.events)) {
+          setRecentAudits(audits.value.events);
+        }
+        if (benchSum.status === "fulfilled" && benchSum.value) setBenchmarkSummary(benchSum.value);
+        if (benchHistory.status === "fulfilled" && Array.isArray(benchHistory.value) && benchHistory.value.length > 0) {
           setLatestBenchmark(benchHistory.value[0]);
         }
-        if (hybridSum.status === "fulfilled") setHybridSummary(hybridSum.value);
+        if (hybridSum.status === "fulfilled" && hybridSum.value) setHybridSummary(hybridSum.value);
 
         if (ready.status === "rejected") {
           setError(
@@ -196,7 +200,7 @@ export default function OverviewDashboard() {
             <div>
               <p className="text-xs text-slate-400 font-medium">Budget Ceiling</p>
               <h4 className="text-lg font-bold text-slate-100 mt-1">
-                ${hybridSummary?.default_budget_ceiling_usd.toFixed(2) || "0.20"}{" "}
+                ${typeof hybridSummary?.default_budget_ceiling_usd === "number" ? hybridSummary.default_budget_ceiling_usd.toFixed(2) : "0.20"}{" "}
                 <span className="text-xs text-slate-400 font-normal">per run cap</span>
               </h4>
             </div>
@@ -205,7 +209,7 @@ export default function OverviewDashboard() {
             </div>
           </div>
           <div className="mt-3 text-[11px] text-slate-400 flex items-center justify-between font-mono">
-            <span>Hard max: ${hybridSummary?.max_budget_ceiling_usd.toFixed(2) || "1.00"}</span>
+            <span>Hard max: ${typeof hybridSummary?.max_budget_ceiling_usd === "number" ? hybridSummary.max_budget_ceiling_usd.toFixed(2) : "1.00"}</span>
             <span className="text-emerald-400">Fail-Closed</span>
           </div>
         </Card>
@@ -230,7 +234,7 @@ export default function OverviewDashboard() {
               </Link>
             </CardHeader>
             <CardContent>
-              {recentAudits.length === 0 ? (
+              {!recentAudits || recentAudits.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400">
                   No audit events recorded yet. Run tests or submit an inspection request in the Playground.
                 </div>
@@ -246,22 +250,32 @@ export default function OverviewDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
-                      {recentAudits.map((event) => (
-                        <tr key={event.event_id} className="hover:bg-slate-800/40 transition-colors">
-                          <td className="py-2.5 font-medium text-slate-200">{event.event_type}</td>
-                          <td className="py-2.5 text-slate-400">{event.component}</td>
-                          <td className="py-2.5">
-                            {event.decision ? (
-                              <StatusBadge status={event.decision} />
-                            ) : (
-                              <span className="text-slate-400 text-[10px]">—</span>
-                            )}
-                          </td>
-                          <td className="py-2.5 text-right text-slate-400 text-[11px]">
-                            {new Date(event.timestamp).toLocaleTimeString()}
-                          </td>
-                        </tr>
-                      ))}
+                      {(recentAudits || []).map((event) => {
+                        let formattedTime = "—";
+                        try {
+                          if (event.timestamp) {
+                            formattedTime = new Date(event.timestamp).toLocaleTimeString();
+                          }
+                        } catch {
+                          // Ignore date parsing error
+                        }
+                        return (
+                          <tr key={event.event_id} className="hover:bg-slate-800/40 transition-colors">
+                            <td className="py-2.5 font-medium text-slate-200">{event.event_type}</td>
+                            <td className="py-2.5 text-slate-400">{event.component}</td>
+                            <td className="py-2.5">
+                              {event.decision ? (
+                                <StatusBadge status={event.decision} />
+                              ) : (
+                                <span className="text-slate-400 text-[10px]">—</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 text-right text-slate-400 text-[11px]">
+                              {formattedTime}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -309,14 +323,14 @@ export default function OverviewDashboard() {
               </Link>
             </CardHeader>
             <CardContent>
-              {pendingApprovals.length === 0 ? (
+              {!pendingApprovals || pendingApprovals.length === 0 ? (
                 <div className="py-6 text-center text-xs text-slate-400">
                   <CheckCircle2 className="w-6 h-6 mx-auto mb-2 text-emerald-500/60" />
                   No actions currently held for approval.
                 </div>
               ) : (
                 <div className="space-y-2.5">
-                  {pendingApprovals.slice(0, 3).map((app) => (
+                  {(pendingApprovals || []).slice(0, 3).map((app) => (
                     <div key={app.approval_id} className="p-2.5 rounded bg-slate-950/60 border border-slate-800 text-xs">
                       <div className="flex items-center justify-between font-mono font-medium text-slate-200">
                         <span>{app.tool_name}</span>

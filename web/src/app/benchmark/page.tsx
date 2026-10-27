@@ -340,17 +340,19 @@ export default function BenchmarkPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
-                  {history.map((run) => (
+                  {(history || []).map((run) => (
                     <tr key={run.run_id} className="hover:bg-slate-800/40">
                       <td className="py-2.5 px-3 text-slate-400 whitespace-nowrap">
-                        {new Date(run.timestamp).toLocaleString()}
+                        {run.timestamp ? new Date(run.timestamp).toLocaleString() : "—"}
                       </td>
                       <td className="py-2.5 px-3 text-indigo-300 font-semibold truncate max-w-[140px]">
                         {run.run_id}
                       </td>
                       <td className="py-2.5 px-3 text-slate-200">{run.total_cases}</td>
                       <td className="py-2.5 px-3 text-emerald-400">{run.passed_cases}</td>
-                      <td className="py-2.5 px-3 text-slate-200">{(run.accuracy * 100).toFixed(1)}%</td>
+                      <td className="py-2.5 px-3 text-slate-200">
+                        {typeof run.accuracy === "number" ? `${(run.accuracy * 100).toFixed(1)}%` : "—"}
+                      </td>
                       <td className="py-2.5 px-3 text-emerald-400 font-semibold">100% (0 Unauth)</td>
                     </tr>
                   ))}
