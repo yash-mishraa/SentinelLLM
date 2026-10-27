@@ -57,6 +57,7 @@ COPY --chown=sentinel:sentinel alembic ./alembic
 COPY --chown=sentinel:sentinel scripts ./scripts
 COPY --chown=sentinel:sentinel src ./src
 COPY --chown=sentinel:sentinel promptprobe ./promptprobe
+COPY --chown=sentinel:sentinel benchmarks ./benchmarks
 
 # Enforce non-root execution
 USER sentinel
